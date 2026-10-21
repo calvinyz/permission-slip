@@ -15,12 +15,21 @@ The conversational services talk; the gateway decides. Language models negotiate
 | Path | What it is |
 | --- | --- |
 | [`api/`](api/) | The HTTP + event-stream contract (OpenAPI 3.1) and example payloads. The only thing services share. |
+| [`services/gateway/`](services/gateway/) | Decisioning service: claim verification, policy engine, signed mandates, card issuing, settlement and reconciliation, plus the demo merchant. Python / FastAPI. |
 
 Services never import each other's code. They integrate only through `api/openapi.yaml`, and each validates its own traffic against it.
 
 ## Quick start
 
-Mock the API from the contract (for building clients before the gateway is running):
+```bash
+cd services/gateway
+uv sync
+uv run pytest                                   # contract + scenario tests
+uv run uvicorn gateway.app:app --reload         # http://localhost:8000
+uv run python scripts/run_scenarios.py          # drive all demo scenarios against it
+```
+
+Mock the API from the contract instead (for building clients without the gateway):
 
 ```bash
 npx @stoplight/prism-cli mock api/openapi.yaml   # http://localhost:4010

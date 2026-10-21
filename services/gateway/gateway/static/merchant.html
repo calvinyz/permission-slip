@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo Air · Test Merchant</title>
+  <style>
+    :root {
+      --bg: #f6f6f4; --surface: #ffffff; --text: #16181d; --muted: #646a73; --border: #e2e3e0;
+      --accent: #1f5eff; --accent-text: #ffffff; --banner: #fff4d6; --banner-text: #6b4d00;
+      --ok: #0f7b45; --ok-bg: #e6f5ec; --bad: #b42318; --bad-bg: #fdecea;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111214; --surface: #1a1c1f; --text: #ececec; --muted: #9aa0a8; --border: #2c2f34;
+        --accent: #5b8cff; --accent-text: #0b0c0e; --banner: #3a2f10; --banner-text: #f3d48a;
+        --ok: #5fd39a; --ok-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1714;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+    .banner { background: var(--banner); color: var(--banner-text); text-align: center; padding: 8px 16px; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+    header h1 { margin: 0; font-size: 24px; }
+    header p { margin: 4px 0 24px; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    .items { display: grid; gap: 8px; }
+    .item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+    .item:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .item .meta { flex: 1; }
+    .item .title { font-weight: 600; }
+    .item .sub { color: var(--muted); font-size: 13px; }
+    .item .price { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .fields { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .fields { grid-template-columns: 1fr 1fr; } .fields .pan { grid-column: 1 / -1; } }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+    input[type=text] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-variant-numeric: tabular-nums; }
+    button { margin-top: 16px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: default; }
+    .result { margin-top: 16px; padding: 12px 14px; border-radius: 8px; display: none; }
+    .result.ok { display: block; background: var(--ok-bg); color: var(--ok); }
+    .result.bad { display: block; background: var(--bad-bg); color: var(--bad); }
+    details { color: var(--muted); font-size: 13px; }
+    details summary { cursor: pointer; }
+    .operator { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="banner" role="note">DEMO MERCHANT · Test cards only · Not a real airline or event · No real money moves</div>
+  <main>
+    <header>
+      <h1>Demo Air</h1>
+      <p>A test storefront for the Permission Slip demo.</p>
+    </header>
+
+    <form id="checkout" class="card" autocomplete="off">
+      <h2>1. Choose an item</h2>
+      <div class="items" id="items" role="radiogroup" aria-label="Items"></div>
+
+      <h2 style="margin-top:20px">2. Pay with your virtual card</h2>
+      <div class="fields">
+        <div class="pan"><label for="pan">Card number</label><input type="text" id="pan" name="pan" inputmode="numeric" placeholder="4242 4242 4242 4242" required></div>
+        <div><label for="exp_month">Exp. month</label><input type="text" id="exp_month" name="exp_month" inputmode="numeric" placeholder="MM" required></div>
+        <div><label for="exp_year">Exp. year</label><input type="text" id="exp_year" name="exp_year" inputmode="numeric" placeholder="YYYY" required></div>
+        <div><label for="cvc">CVC</label><input type="text" id="cvc" name="cvc" inputmode="numeric" placeholder="123" required></div>
+      </div>
+      <button type="submit" id="pay">Pay</button>
+      <div class="result" id="result" role="status" aria-live="polite"></div>
+    </form>
+
+    <details class="card">
+      <summary>Merchant controls (demo operator)</summary>
+      <div class="operator">
+        <input type="checkbox" id="overcharge"><label for="overcharge" style="margin:0">Add an undisclosed $140.00 fee to every charge</label>
+      </div>
+    </details>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const usd = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+    const preselect = new URLSearchParams(location.search).get("item");
+
+    async function api(method, path, body) {
+      const res = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+      return { ok: res.ok, data: await res.json() };
+    }
+
+    async function load() {
+      const { data } = await api("GET", "/merchant/catalog");
+      $("items").innerHTML = data.items.map((item, i) => `
+        <label class="item">
+          <input type="radio" name="item_id" value="${item.item_id}" ${(preselect ? item.item_id === preselect : i === 0) ? "checked" : ""}>
+          <span class="meta"><span class="title">${item.title}</span><br><span class="sub">${item.merchant} · ${item.subtitle}</span></span>
+          <span class="price">${usd(item.price_usd)}</span>
+        </label>`).join("");
+      const settings = (await api("GET", "/merchant/settings")).data;
+      $("overcharge").checked = settings.overcharge_usd > 0;
+    }
+
+    $("overcharge").addEventListener("change", (e) =>
+      api("PUT", "/merchant/settings", { overcharge_usd: e.target.checked ? 140 : 0 }));
+
+    $("checkout").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      $("pay").disabled = true;
+      const { ok, data } = await api("POST", "/merchant/checkout", {
+        item_id: form.get("item_id"),
+        pan: form.get("pan"),
+        cvc: form.get("cvc"),
+        exp_month: Number(form.get("exp_month")),
+        exp_year: Number(form.get("exp_year")),
+      });
+      $("pay").disabled = false;
+      const result = $("result");
+      if (!ok) {
+        result.className = "result bad";
+        result.textContent = data.error?.message ?? "Checkout failed.";
+      } else if (data.charge.status === "authorized") {
+        result.className = "result ok";
+        result.textContent = `Payment approved. Charged ${usd(data.charge.amount_usd)} to card ending ${form.get("pan").slice(-4)}. Confirmation ${data.charge.charge_id}.`;
+      } else {
+        result.className = "result bad";
+        result.textContent = `Card declined (${data.charge.decline_reason.replaceAll("_", " ")}).`;
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

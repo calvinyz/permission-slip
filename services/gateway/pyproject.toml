@@ -1,0 +1,23 @@
+[project]
+name = "permission-slip-gateway"
+version = "0.1.0"
+description = "Decisioning service for agent purchases: claim verification, policy, signed mandates, cards and reconciliation"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jsonschema>=4.23",
+    "referencing>=0.35",
+    "rfc3339-validator>=0.1.4",
+    "pyyaml>=6.0",
+    "cryptography>=43",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx2"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
