@@ -1,8 +1,6 @@
 """Request lifecycle: decide, escalate, sign, issue, settle, reconcile. Emits every step as an event."""
 
-import copy
 import json
-import threading
 from datetime import timedelta
 
 from . import cards as cardlib
@@ -10,6 +8,7 @@ from . import engine, seed
 from .cards import CardService
 from .events import EventBus
 from .mandates import MandateSigner
+from .store import Store
 from .util import new_id, now, parse_ts, usd
 
 CARD_TTL = timedelta(hours=24)
@@ -28,30 +27,29 @@ class Forbidden(Exception):
 
 
 class Gateway:
-    def __init__(self, cards: CardService, signer: MandateSigner, bus: EventBus):
+    def __init__(self, store: Store, cards: CardService, signer: MandateSigner, bus: EventBus):
+        self.store = store
         self.cards = cards
         self.signer = signer
         self.bus = bus
-        self.requests: dict[str, dict] = {}
-        self.decisions: dict[str, dict] = {}
-        self.escalations: dict[str, dict] = {}
-        self.mandates: dict[str, dict] = {}
-        self.budgets = copy.deepcopy(seed.TEAM_BUDGETS_REMAINING)
-        self._lock = threading.RLock()
+        with store.transaction():
+            for department, remaining in seed.TEAM_BUDGETS_REMAINING.items():
+                if store.get("budget", department) is None:
+                    store.put("budget", department, remaining)
 
     # ---- requests ---------------------------------------------------------
 
     def submit(self, req: dict) -> dict:
-        with self._lock:
+        with self.store.transaction():
             rid = req["request_id"]
-            if rid in self.requests:
-                if _same(self.requests[rid], req):
-                    return self.decisions[rid]
+            if existing := self.store.get("request", rid):
+                if _same(existing, req):
+                    return self.store.get("decision", rid)
                 raise Conflict(f"request_id {rid} was already used with a different body")
-            self.requests[rid] = req
+            self.store.put("request", rid, req)
             self.bus.publish("request.received", rid, {"request": req})
 
-            outcome = engine.decide(req, self.budgets)
+            outcome = engine.decide(req, self.store.items("budget"))
             self.bus.publish(
                 "claims.verified",
                 rid,
@@ -91,27 +89,23 @@ class Gateway:
                     "reason": outcome.escalation_reason,
                     "opened_at": now(),
                 }
-                self.escalations[esc["escalation_id"]] = esc
+                self.store.put("escalation", esc["escalation_id"], esc)
                 decision["escalation"] = esc
                 self.bus.publish("escalation.opened", rid, {"escalation": esc})
             elif outcome.status == "approved":
                 self._approve(req, decision)
 
-            self.decisions[rid] = decision
+            self.store.put("decision", rid, decision)
             return decision
 
     def get_decision(self, request_id: str) -> dict:
-        if request_id not in self.decisions:
-            raise NotFound(f"No request {request_id}")
-        return self.decisions[request_id]
+        return self._get("decision", request_id)
 
     # ---- escalations ------------------------------------------------------
 
     def resolve(self, escalation_id: str, action: str, resolver_id: str, note: str | None) -> dict:
-        with self._lock:
-            esc = self.escalations.get(escalation_id)
-            if not esc:
-                raise NotFound(f"No escalation {escalation_id}")
+        with self.store.transaction():
+            esc = self._get("escalation", escalation_id)
             if esc["status"] != "open":
                 raise Conflict(f"Escalation {escalation_id} is already {esc['status']}")
             if resolver_id != esc["approver_id"]:
@@ -120,10 +114,11 @@ class Gateway:
             esc.update(status="approved" if action == "approve" else "denied", resolved_at=now())
             if note:
                 esc["note"] = note
+            self.store.put("escalation", escalation_id, esc)
             self.bus.publish("escalation.resolved", esc["request_id"], {"escalation": esc})
 
-            decision = self.decisions[esc["request_id"]]
-            req = self.requests[esc["request_id"]]
+            decision = self.store.get("decision", esc["request_id"])
+            req = self.store.get("request", esc["request_id"])
             approver = seed.EMPLOYEES[resolver_id]["name"]
             decision["escalation"] = esc
             decision["decided_at"] = now()
@@ -134,6 +129,7 @@ class Gateway:
             else:
                 decision["status"] = "denied"
                 decision["reason"] = f"Denied by {approver}" + (f": {note}" if note else ".")
+            self.store.put("decision", esc["request_id"], decision)
             return decision
 
     # ---- mandates and cards -----------------------------------------------
@@ -160,19 +156,21 @@ class Gateway:
         if approved_by:
             unsigned["approved_by"] = approved_by
         mandate = self.signer.sign(unsigned)
+        self.store.put("mandate", mandate_id, mandate)
+
         department = seed.EMPLOYEES[req["employee_id"]]["department"]
-        if req["merchant_category"] in self.budgets.get(department, {}):
-            self.budgets[department][req["merchant_category"]] -= req["amount_usd"]
-        self.mandates[mandate_id] = mandate
+        budget = self.store.get("budget", department) or {}
+        if req["merchant_category"] in budget:
+            budget[req["merchant_category"]] -= req["amount_usd"]
+            self.store.put("budget", department, budget)
+
         self.bus.publish("mandate.signed", req["request_id"], {"mandate": mandate})
         self.bus.publish("card.issued", req["request_id"], {"card": cardlib.public(card)})
         decision["mandate_id"] = mandate_id
         decision["card"] = cardlib.public(card)
 
     def get_mandate(self, mandate_id: str) -> dict:
-        if mandate_id not in self.mandates:
-            raise NotFound(f"No mandate {mandate_id}")
-        return self.mandates[mandate_id]
+        return self._get("mandate", mandate_id)
 
     def get_card(self, card_id: str) -> dict:
         card = self.cards.get_card(card_id)
@@ -183,7 +181,7 @@ class Gateway:
     # ---- settlement -------------------------------------------------------
 
     def charge(self, body: dict) -> dict:
-        with self._lock:
+        with self.store.transaction():
             charge = {"charge_id": new_id("chg"), "amount_usd": body["amount_usd"]}
             card = self.cards.find_by_pan(body["pan"])
             decline = None
@@ -198,7 +196,7 @@ class Gateway:
             if decline:
                 return {**charge, "status": "declined", "decline_reason": decline, **({"card_id": card["card_id"]} if card else {})}
 
-            mandate = self.mandates[card["mandate_id"]]
+            mandate = self.store.get("mandate", card["mandate_id"])
             txn = {
                 "txn_id": new_id("txn"),
                 "card_id": card["card_id"],
@@ -210,9 +208,9 @@ class Gateway:
                 "settled_at": now(),
                 "status": "settled",
             }
-            self.cards.record_transaction(txn)
             self.bus.publish("txn.settled", txn["request_id"], {"transaction": dict(txn)})
             self._reconcile(txn, card, mandate)
+            self.cards.record_transaction(txn)
             return {**charge, "status": "authorized", "card_id": card["card_id"], "txn_id": txn["txn_id"]}
 
     def _reconcile(self, txn: dict, card: dict, mandate: dict) -> None:
@@ -231,7 +229,7 @@ class Gateway:
             txn["coding"] = {
                 "gl_account": seed.GL_ACCOUNTS[mandate["merchant_category"]],
                 "department": emp["department"],
-                "memo": f"{mandate['justification']} ({self.requests[rid]['description']})",
+                "memo": f"{mandate['justification']} ({self.store.get('request', rid)['description']})",
             }
             self.cards.close_card(card["card_id"])
             self.bus.publish("txn.reconciled", rid, {"transaction": txn})
@@ -241,6 +239,11 @@ class Gateway:
             suspended = self.cards.suspend_card(card["card_id"])
             failed = ", ".join(f"{m['field']} expected {m['expected']}, got {m['actual']}" for m in txn["match"] if m["result"] == "mismatch")
             self.bus.publish("card.suspended", rid, {"card": cardlib.public(suspended), "reason": f"Settlement mismatch: {failed}"})
+
+    def _get(self, kind: str, id_: str) -> dict:
+        if (doc := self.store.get(kind, id_)) is None:
+            raise NotFound(f"No {kind} {id_}")
+        return doc
 
 
 def _check(field: str, expected: str, actual: str, ok: bool) -> dict:

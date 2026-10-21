@@ -7,14 +7,20 @@ from fastapi import FastAPI, Header, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from . import contract, merchant
-from .cards import InMemoryCards
+from .cards import LocalCards
 from .events import EventBus
 from .mandates import MandateSigner
 from .service import Conflict, Forbidden, Gateway, NotFound
+from .store import Store
+
+
+def build_gateway(db_path: str) -> Gateway:
+    store = Store(db_path)
+    return Gateway(store, LocalCards(store), MandateSigner(), EventBus(store))
 
 
 def create_app(gateway: Gateway | None = None, api_token: str | None = None) -> FastAPI:
-    gw = gateway or Gateway(InMemoryCards(), MandateSigner(), EventBus())
+    gw = gateway or build_gateway(os.environ.get("GATEWAY_DB_PATH", "gateway.db"))
     token = api_token or os.environ.get("GATEWAY_API_TOKEN", "dev-token")
     app = FastAPI(title="Permission Slip Gateway", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.gateway = gw
@@ -106,5 +112,3 @@ def create_app(gateway: Gateway | None = None, api_token: str | None = None) -> 
 
     return app
 
-
-app = create_app()

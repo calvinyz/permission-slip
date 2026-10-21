@@ -9,6 +9,11 @@ __pycache__/
 node_modules/
 dist/
 
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
 # Env and secrets
 .env
 .env.*

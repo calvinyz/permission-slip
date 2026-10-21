@@ -22,7 +22,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-uv run uvicorn gateway.app:app --host 127.0.0.1 --port "$PORT" &
+uv run uvicorn --factory gateway.app:create_app --host 127.0.0.1 --port "$PORT" &
 SERVER_PID=$!
 
 tailscale funnel --bg "$PORT"

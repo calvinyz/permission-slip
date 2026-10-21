@@ -25,7 +25,7 @@ Services never import each other's code. They integrate only through `api/openap
 cd services/gateway
 uv sync
 uv run pytest                                   # contract + scenario tests
-uv run uvicorn gateway.app:app --reload         # http://localhost:8000
+uv run uvicorn --factory gateway.app:create_app --reload         # http://localhost:8000
 uv run python scripts/run_scenarios.py          # drive all demo scenarios against it
 ```
 

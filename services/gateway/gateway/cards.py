@@ -3,6 +3,7 @@
 import secrets
 from typing import Protocol
 
+from .store import Store
 from .util import new_id
 
 
@@ -23,12 +24,11 @@ class CardService(Protocol):
     def record_transaction(self, txn: dict) -> None: ...
 
 
-class InMemoryCards:
-    """Single-use virtual cards held in memory, shaped like Ramp's so the backends are interchangeable."""
+class LocalCards:
+    """Simulated single-use virtual cards, persisted in the store and shaped like Ramp's so the backends are interchangeable."""
 
-    def __init__(self):
-        self._cards: dict[str, dict] = {}
-        self._txns: list[dict] = []
+    def __init__(self, store: Store):
+        self._store = store
 
     def issue_card(self, mandate_id, limit_usd, merchant_lock, expires_at):
         pan = "4242" + "".join(secrets.choice("0123456789") for _ in range(12))
@@ -45,29 +45,32 @@ class InMemoryCards:
             "exp_month": int(expires_at[5:7]),
             "exp_year": int(expires_at[:4]),
         }
-        self._cards[card["card_id"]] = card
-        return dict(card)
+        self._store.put("card", card["card_id"], card)
+        return card
 
     def suspend_card(self, card_id):
-        self._cards[card_id]["status"] = "suspended"
-        return dict(self._cards[card_id])
+        return self._set_status(card_id, "suspended")
 
     def close_card(self, card_id):
-        self._cards[card_id]["status"] = "closed"
-        return dict(self._cards[card_id])
+        return self._set_status(card_id, "closed")
 
     def get_card(self, card_id):
-        card = self._cards.get(card_id)
-        return dict(card) if card else None
+        return self._store.get("card", card_id)
 
     def find_by_pan(self, pan):
-        return next((dict(c) for c in self._cards.values() if c["pan"] == pan), None)
+        return self._store.find("card", "pan", pan)
 
     def list_transactions(self, card_id=None):
-        return [t for t in self._txns if card_id is None or t["card_id"] == card_id]
+        return [t for t in self._store.items("txn").values() if card_id is None or t["card_id"] == card_id]
 
     def record_transaction(self, txn):
-        self._txns.append(txn)
+        self._store.put("txn", txn["txn_id"], txn)
+
+    def _set_status(self, card_id, status):
+        card = self._store.get("card", card_id)
+        card["status"] = status
+        self._store.put("card", card_id, card)
+        return card
 
 
 def public(card: dict) -> dict:

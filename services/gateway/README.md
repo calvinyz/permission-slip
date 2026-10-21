@@ -6,7 +6,7 @@ The decisioning service. It receives structured purchase requests, verifies ever
 
 ```bash
 uv sync
-uv run uvicorn gateway.app:app --reload           # http://localhost:8000
+uv run uvicorn --factory gateway.app:create_app --reload           # http://localhost:8000
 uv run pytest
 uv run python scripts/run_scenarios.py --url http://localhost:8000
 ```
@@ -16,6 +16,7 @@ The demo merchant is at http://localhost:8000/merchant (`?item=<item_id>` presel
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `GATEWAY_API_TOKEN` | `dev-token` | Bearer token required on `/v1/*` |
+| `GATEWAY_DB_PATH` | `gateway.db` | SQLite database; delete it to reset all state |
 | `GATEWAY_MANDATE_KEY` | generated per process | Base64 Ed25519 seed for signing mandates; set it to keep signatures stable across restarts |
 
 ## Public URL
@@ -38,11 +39,12 @@ The script refuses to start with the default token and turns the funnel off on e
 | [`engine.py`](gateway/engine.py) | Claim verification, prompt-injection scan, and policy rules with a full trace |
 | [`mandates.py`](gateway/mandates.py) | Ed25519 signing over RFC 8785 canonical JSON |
 | [`merchant.py`](gateway/merchant.py) | Demo merchant storefront at `/merchant`: catalog, server-side pricing, overcharge toggle |
-| [`cards.py`](gateway/cards.py) | `CardService` interface and the in-memory issuer |
+| [`cards.py`](gateway/cards.py) | `CardService` interface and the local simulated issuer |
 | [`events.py`](gateway/events.py) | Event bus and Server-Sent Events stream with replay |
+| [`store.py`](gateway/store.py) | SQLite persistence: JSON documents by kind and id, plus the append-only event log |
 | [`contract.py`](gateway/contract.py) | Loads `api/openapi.yaml` and validates payloads against it |
 | [`seed.py`](gateway/seed.py) | Demo company: employees, calendars, policy, budgets, fare history, GL accounts |
 
 Every response and every event is validated against the contract before it leaves the service, so a contract drift fails loudly in development rather than silently in a client.
 
-State is in memory; restarting the process clears it.
+State (requests, decisions, mandates, cards, budgets and the event log) persists in SQLite across restarts. The demo merchant's overcharge toggle resets to off on restart.

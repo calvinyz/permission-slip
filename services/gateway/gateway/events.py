@@ -6,35 +6,40 @@ import secrets
 from collections.abc import AsyncIterator
 
 from . import contract
+from .store import Store
 from .util import now
 
 
 class EventBus:
-    def __init__(self):
-        self.history: list[dict] = []
+    def __init__(self, store: Store):
+        self._store = store
         self._subscribers: set[asyncio.Queue] = set()
 
     def publish(self, type_: str, request_id: str | None, data: dict) -> dict:
         event = {
             "event_id": f"evt_{secrets.token_hex(6)}",
-            "seq": len(self.history) + 1,
+            "seq": self._store.last_seq() + 1,
             "type": type_,
             "ts": now(),
             "request_id": request_id,
             "data": data,
         }
         contract.check("Event", event)
-        self.history.append(event)
+        self._store.append_event(event)
         for q in self._subscribers:
             q.put_nowait(event)
         return event
+
+    @property
+    def history(self) -> list[dict]:
+        return self._store.events_after(0)
 
     async def stream(self, since: int, keepalive_s: float = 15.0) -> AsyncIterator[str]:
         q: asyncio.Queue = asyncio.Queue()
         self._subscribers.add(q)
         try:
             # Subscribe before replaying so nothing published in between is lost.
-            backlog = self.history[since:]
+            backlog = self._store.events_after(since)
             last = since
             for event in backlog:
                 last = event["seq"]

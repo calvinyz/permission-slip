@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from gateway.app import create_app
+from gateway.app import build_gateway, create_app
 
 EXAMPLES = Path(__file__).resolve().parents[3] / "api" / "examples"
 TOKEN = "test-token"
@@ -16,7 +16,7 @@ def example(name: str):
 
 @pytest.fixture
 def app():
-    return create_app(api_token=TOKEN)
+    return create_app(build_gateway(":memory:"), api_token=TOKEN)
 
 
 @pytest.fixture

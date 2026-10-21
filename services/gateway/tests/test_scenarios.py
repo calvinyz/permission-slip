@@ -145,3 +145,25 @@ def test_approvals_draw_down_team_budget(client):
     second = client.post("/v1/requests", json=base | {"request_id": "req_conf_b", "amount_usd": 900.00}).json()
     assert first["status"] == "approved"
     assert second["status"] == "escalated", "second pass should exceed the $600 left of the $1,500 budget"
+
+
+def test_state_survives_restart(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from gateway.app import build_gateway, create_app
+
+    from .conftest import TOKEN
+
+    db = str(tmp_path / "gateway.db")
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    with TestClient(create_app(build_gateway(db), api_token=TOKEN), headers=headers) as before:
+        d = before.post("/v1/requests", json=example("03-escalation.request.json")).json()
+
+    restarted = create_app(build_gateway(db), api_token=TOKEN)
+    with TestClient(restarted, headers=headers) as after:
+        assert after.get(f"/v1/requests/{d['request_id']}").json() == d
+        resolved = after.post(f"/v1/escalations/{d['escalation']['escalation_id']}/resolve", json=example("03-escalation.resolution.json"))
+        assert resolved.json()["status"] == "approved"
+        assert after.get(f"/v1/cards/{resolved.json()['card']['card_id']}").json()["status"] == "active"
+    seqs = [e["seq"] for e in restarted.state.gateway.bus.history]
+    assert seqs == list(range(1, len(seqs) + 1)), "event seq continues across restarts"
