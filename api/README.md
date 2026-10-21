@@ -14,6 +14,7 @@ Changes are breaking by default. Bump `info.version`, update the examples, and m
 | `GET /v1/cards/{card_id}` | MCP server, negotiator | Card PAN/CVC for checkout |
 | `GET /v1/mandates/{mandate_id}` | Dashboard | Signed mandate |
 | `GET /v1/events` | Dashboard | Server-Sent Events stream of every step; replay with `since` or `Last-Event-ID` |
+| `POST /v1/events/tickets` | Dashboard | Single-use, 60-second ticket for opening the stream from a browser (`?ticket=`), since `EventSource` cannot send headers |
 | `POST /merchant/charge` | Demo merchant | Charge a card; triggers settlement and reconciliation |
 
 All `/v1/*` routes require `Authorization: Bearer <GATEWAY_API_TOKEN>` (`dev-token` locally).

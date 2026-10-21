@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Card Issuer Console</title>
+  <style>
+    :root {
+      --bg: #f6f6f4; --surface: #ffffff; --text: #16181d; --muted: #646a73; --border: #e2e3e0;
+      --accent: #1f5eff; --accent-text: #ffffff; --banner: #eef2ff; --banner-text: #2a3a7a;
+      --ok: #0f7b45; --ok-bg: #e6f5ec; --bad: #b42318; --bad-bg: #fdecea; --idle: #646a73; --idle-bg: #efefed;
+      --flash: #fff7d6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111214; --surface: #1a1c1f; --text: #ececec; --muted: #9aa0a8; --border: #2c2f34;
+        --accent: #5b8cff; --accent-text: #0b0c0e; --banner: #1c2240; --banner-text: #b9c6ff;
+        --ok: #5fd39a; --ok-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1714; --idle: #9aa0a8; --idle-bg: #26282c;
+        --flash: #3a3313;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+    .banner { background: var(--banner); color: var(--banner-text); text-align: center; padding: 8px 16px; font-size: 13px; font-weight: 600; }
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 22px; }
+    .live { color: var(--muted); font-size: 13px; }
+    .live::before { content: "●"; margin-right: 6px; color: var(--idle); }
+    .live.on::before { color: var(--ok); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .stat .label { color: var(--muted); font-size: 12px; }
+    .stat .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+    section h2 { font-size: 14px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; font-size: 12px; }
+    tr:last-child td { border-bottom: 0; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.wrap { white-space: normal; min-width: 220px; color: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .chip.active, .chip.reconciled { background: var(--ok-bg); color: var(--ok); }
+    .chip.suspended, .chip.mismatch { background: var(--bad-bg); color: var(--bad); }
+    .chip.closed, .chip.settled { background: var(--idle-bg); color: var(--idle); }
+    .empty { padding: 20px 16px; color: var(--muted); }
+    tr.flash td { animation: flash 2s ease-out; }
+    @keyframes flash { from { background: var(--flash); } to { background: transparent; } }
+    .gate { max-width: 420px; margin: 80px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .gate h1 { margin-bottom: 8px; }
+    .gate p { color: var(--muted); margin: 0 0 16px; }
+    .gate input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+    .gate button { margin-top: 12px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
+    .gate .error { color: var(--bad); margin-top: 8px; min-height: 1.5em; }
+  </style>
+</head>
+<body>
+  <div class="banner" role="note">Simulated card issuer · Stands in for the Ramp sandbox until API access is granted · No real money moves</div>
+
+  <form class="gate" id="gate" hidden>
+    <h1>Card issuer console</h1>
+    <p>Enter the gateway API token to view cards.</p>
+    <label for="token" class="label">API token</label>
+    <input id="token" type="password" autocomplete="off" required>
+    <button type="submit">Open console</button>
+    <div class="error" id="gate-error" role="alert"></div>
+  </form>
+
+  <main id="console" hidden>
+    <header>
+      <h1>Card issuer console</h1>
+      <span class="live" id="live">Connecting…</span>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Active cards</div><div class="value" id="stat-active">0</div></div>
+      <div class="stat"><div class="label">Approved limits</div><div class="value" id="stat-limits">$0.00</div></div>
+      <div class="stat"><div class="label">Reconciled spend</div><div class="value" id="stat-spend">$0.00</div></div>
+      <div class="stat"><div class="label">Suspended cards</div><div class="value" id="stat-suspended">0</div></div>
+    </div>
+
+    <section>
+      <h2>Virtual cards</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Card</th><th>Employee</th><th>Merchant</th><th>Locked to</th><th class="num">Limit</th><th>Status</th><th>Expires</th></tr></thead>
+        <tbody id="cards"></tbody>
+      </table></div>
+      <div class="empty" id="cards-empty">No cards issued yet.</div>
+    </section>
+
+    <section>
+      <h2>Transactions</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Settled</th><th>Card</th><th>Merchant</th><th class="num">Amount</th><th>Status</th><th>GL account</th><th>Department</th><th>Memo</th></tr></thead>
+        <tbody id="txns"></tbody>
+      </table></div>
+      <div class="empty" id="txns-empty">No transactions yet.</div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const usd = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const time = (ts) => new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const person = (id) => id.replace(/^emp_/, "").replace(/^./, (c) => c.toUpperCase());
+
+    const store = {
+      get() { try { return sessionStorage.getItem("gateway-token"); } catch { return null; } },
+      set(v) { try { sessionStorage.setItem("gateway-token", v); } catch {} },
+      clear() { try { sessionStorage.removeItem("gateway-token"); } catch {} },
+    };
+
+    const mandates = new Map(), cards = new Map(), txns = new Map();
+    let fresh = new Set(), replaying = true;
+
+    function apply(event) {
+      const d = event.data;
+      switch (event.type) {
+        case "mandate.signed": mandates.set(d.mandate.mandate_id, d.mandate); break;
+        case "card.issued": cards.set(d.card.card_id, { ...d.card }); fresh.add(d.card.card_id); break;
+        case "card.suspended": cards.set(d.card.card_id, { ...d.card }); fresh.add(d.card.card_id); break;
+        case "txn.settled": case "txn.reconciled": case "txn.mismatch":
+          txns.set(d.transaction.txn_id, d.transaction); fresh.add(d.transaction.txn_id);
+          if (event.type === "txn.reconciled" && cards.has(d.transaction.card_id)) cards.get(d.transaction.card_id).status = "closed";
+          break;
+        default: return false;
+      }
+      return true;
+    }
+
+    function render() {
+      const cardList = [...cards.values()].reverse();
+      $("cards").innerHTML = cardList.map((c) => {
+        const m = mandates.get(c.mandate_id) || {};
+        return `<tr class="${!replaying && fresh.has(c.card_id) ? "flash" : ""}">
+          <td class="mono">•••• ${esc(c.last4)}</td>
+          <td>${esc(m.employee_id ? person(m.employee_id) : "")}</td>
+          <td>${esc(m.merchant)}</td>
+          <td>${esc(c.merchant_lock.replace("_", " "))}</td>
+          <td class="num">${usd(c.limit_usd)}</td>
+          <td><span class="chip ${esc(c.status)}">${esc(c.status)}</span></td>
+          <td>${time(c.expires_at)}</td></tr>`;
+      }).join("");
+      $("cards-empty").hidden = cardList.length > 0;
+
+      const txnList = [...txns.values()].reverse();
+      $("txns").innerHTML = txnList.map((t) => {
+        const card = cards.get(t.card_id);
+        const memo = t.coding?.memo ?? (t.match || []).filter((x) => x.result === "mismatch").map((x) => `${x.field.replace("_usd", "")}: expected ${x.expected}, got ${x.actual}`).join("; ");
+        return `<tr class="${!replaying && fresh.has(t.txn_id) ? "flash" : ""}">
+          <td>${time(t.settled_at)}</td>
+          <td class="mono">•••• ${esc(card?.last4 ?? "")}</td>
+          <td>${esc(t.merchant)}</td>
+          <td class="num">${usd(t.amount_usd)}</td>
+          <td><span class="chip ${esc(t.status)}">${esc(t.status)}</span></td>
+          <td>${esc(t.coding?.gl_account ?? "—")}</td>
+          <td>${esc(t.coding?.department ?? "—")}</td>
+          <td class="wrap">${esc(memo)}</td></tr>`;
+      }).join("");
+      $("txns-empty").hidden = txnList.length > 0;
+
+      const all = [...cards.values()];
+      $("stat-active").textContent = all.filter((c) => c.status === "active").length;
+      $("stat-suspended").textContent = all.filter((c) => c.status === "suspended").length;
+      $("stat-limits").textContent = usd(all.reduce((s, c) => s + c.limit_usd, 0));
+      $("stat-spend").textContent = usd(txnList.filter((t) => t.status === "reconciled").reduce((s, t) => s + t.amount_usd, 0));
+      fresh = new Set();
+    }
+
+    let lastSeq = 0, pending = null;
+
+    async function connect(token) {
+      const res = await fetch("/v1/events/tickets", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+      if (!res) return retry(token);
+      if (res.status === 401) {
+        store.clear();
+        $("gate").hidden = false; $("console").hidden = true;
+        $("gate-error").textContent = "That token was not accepted.";
+        return;
+      }
+      const { ticket } = await res.json();
+      $("gate").hidden = true; $("console").hidden = false;
+
+      const source = new EventSource(`/v1/events?since=${lastSeq}&ticket=${encodeURIComponent(ticket)}`);
+      source.onopen = () => {
+        $("live").className = "live on"; $("live").textContent = "Live";
+        // The backlog arrives in a burst; render it once, then highlight only new rows.
+        setTimeout(() => { replaying = false; }, 500);
+      };
+      source.onerror = () => {
+        // Tickets are single-use, so reconnect with a fresh one instead of letting EventSource retry.
+        source.close();
+        retry(token);
+      };
+      const types = ["mandate.signed", "card.issued", "card.suspended", "txn.settled", "txn.reconciled", "txn.mismatch"];
+      for (const type of types) {
+        source.addEventListener(type, (msg) => {
+          lastSeq = Math.max(lastSeq, Number(msg.lastEventId) || 0);
+          if (apply(JSON.parse(msg.data))) {
+            clearTimeout(pending);
+            pending = setTimeout(render, replaying ? 50 : 0);
+          }
+        });
+      }
+    }
+
+    function retry(token) {
+      $("live").className = "live"; $("live").textContent = "Reconnecting…";
+      setTimeout(() => connect(token), 2000);
+    }
+
+    $("gate").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const token = $("token").value.trim();
+      store.set(token);
+      $("gate-error").textContent = "";
+      connect(token);
+    });
+
+    const saved = store.get();
+    if (saved) connect(saved); else $("gate").hidden = false;
+  </script>
+</body>
+</html>

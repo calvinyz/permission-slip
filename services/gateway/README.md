@@ -11,6 +11,8 @@ uv run pytest
 uv run python scripts/run_scenarios.py --url http://localhost:8000
 ```
 
+The card issuer console is at http://localhost:8000/issuer. It shows cards and coded transactions live and stands in for the Ramp sandbox dashboard until API access is granted. It asks for the API token once per browser tab.
+
 The demo merchant is at http://localhost:8000/merchant (`?item=<item_id>` preselects an item). Its operator panel toggles a $140 undisclosed fee for the settlement-mismatch scenario.
 
 | Variable | Default | Purpose |
@@ -39,7 +41,7 @@ The script refuses to start with the default token and turns the funnel off on e
 | [`engine.py`](gateway/engine.py) | Claim verification, prompt-injection scan, and policy rules with a full trace |
 | [`mandates.py`](gateway/mandates.py) | Ed25519 signing over RFC 8785 canonical JSON |
 | [`merchant.py`](gateway/merchant.py) | Demo merchant storefront at `/merchant`: catalog, server-side pricing, overcharge toggle |
-| [`cards.py`](gateway/cards.py) | `CardService` interface and the local simulated issuer |
+| [`cards.py`](gateway/cards.py) | `CardService` interface and the local simulated issuer. A Ramp-backed implementation drops in here |
 | [`events.py`](gateway/events.py) | Event bus and Server-Sent Events stream with replay |
 | [`store.py`](gateway/store.py) | SQLite persistence: JSON documents by kind and id, plus the append-only event log |
 | [`contract.py`](gateway/contract.py) | Loads `api/openapi.yaml` and validates payloads against it |

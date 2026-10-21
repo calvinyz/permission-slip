@@ -1,5 +1,6 @@
 """The five demo scenarios, end to end through the HTTP API. Every response and event is contract-checked by the app."""
 
+from gateway.app import StreamTickets
 from gateway.mandates import verify
 
 from .conftest import example
@@ -167,3 +168,21 @@ def test_state_survives_restart(tmp_path):
         assert after.get(f"/v1/cards/{resolved.json()['card']['card_id']}").json()["status"] == "active"
     seqs = [e["seq"] for e in restarted.state.gateway.bus.history]
     assert seqs == list(range(1, len(seqs) + 1)), "event seq continues across restarts"
+
+
+def test_event_stream_tickets(client, app):
+    from fastapi.testclient import TestClient
+
+    res = client.post("/v1/events/tickets")
+    assert res.status_code == 201 and res.json()["ticket"].startswith("tkt_")
+
+    with TestClient(app) as anon:
+        assert anon.post("/v1/events/tickets").status_code == 401, "issuing a ticket needs the bearer token"
+        assert anon.get("/v1/events", params={"ticket": "tkt_forged"}).status_code == 401
+        assert anon.get("/v1/requests/req_x", params={"ticket": res.json()["ticket"]}).status_code == 401, "tickets only open the stream"
+        assert anon.get("/issuer").headers["content-type"].startswith("text/html")
+
+    tickets = StreamTickets()
+    t = tickets.issue()["ticket"]
+    assert tickets.redeem(t) is True
+    assert tickets.redeem(t) is False, "single use"

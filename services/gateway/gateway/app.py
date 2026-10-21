@@ -2,6 +2,9 @@
 
 import hmac
 import os
+import secrets
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -14,6 +17,26 @@ from .service import Conflict, Forbidden, Gateway, NotFound
 from .store import Store
 
 
+class StreamTickets:
+    """Single-use, short-lived credentials for the event stream, so the API token never appears in a URL."""
+
+    TTL = timedelta(seconds=60)
+
+    def __init__(self):
+        self._expiry: dict[str, datetime] = {}
+
+    def issue(self) -> dict:
+        now_ = datetime.now(UTC)
+        self._expiry = {t: exp for t, exp in self._expiry.items() if exp > now_}
+        ticket = f"tkt_{secrets.token_urlsafe(24)}"
+        self._expiry[ticket] = now_ + self.TTL
+        return {"ticket": ticket, "expires_at": self._expiry[ticket].strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+    def redeem(self, ticket: str) -> bool:
+        expiry = self._expiry.pop(ticket, None)
+        return expiry is not None and expiry > datetime.now(UTC)
+
+
 def build_gateway(db_path: str) -> Gateway:
     store = Store(db_path)
     return Gateway(store, LocalCards(store), MandateSigner(), EventBus(store))
@@ -24,6 +47,7 @@ def create_app(gateway: Gateway | None = None, api_token: str | None = None) -> 
     token = api_token or os.environ.get("GATEWAY_API_TOKEN", "dev-token")
     app = FastAPI(title="Permission Slip Gateway", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.gateway = gw
+    tickets = StreamTickets()
 
     def error(status: int, code: str, message: str, details=None) -> JSONResponse:
         body = {"error": {"code": code, "message": message}}
@@ -47,7 +71,10 @@ def create_app(gateway: Gateway | None = None, api_token: str | None = None) -> 
     async def auth(request: Request, call_next):
         if request.url.path.startswith("/v1/"):
             supplied = request.headers.get("authorization", "")
-            if not hmac.compare_digest(supplied, f"Bearer {token}"):
+            if request.url.path == "/v1/events" and "ticket" in request.query_params:
+                if not tickets.redeem(request.query_params["ticket"]):
+                    return error(401, "unauthorized", "Stream ticket is invalid, used or expired")
+            elif not hmac.compare_digest(supplied, f"Bearer {token}"):
                 return error(401, "unauthorized", "Missing or invalid bearer token")
         return await call_next(request)
 
@@ -66,6 +93,10 @@ def create_app(gateway: Gateway | None = None, api_token: str | None = None) -> 
     @app.get("/healthz")
     async def health():
         return {"ok": True}
+
+    @app.get("/issuer", include_in_schema=False)
+    async def issuer_console():
+        return FileResponse(Path(__file__).parent / "static" / "issuer.html", media_type="text/html")
 
     @app.get("/openapi.yaml")
     async def openapi():
@@ -92,6 +123,10 @@ def create_app(gateway: Gateway | None = None, api_token: str | None = None) -> 
     @app.get("/v1/cards/{card_id}")
     async def get_card(card_id: str):
         return ok("CardDetails", gw.get_card(card_id))
+
+    @app.post("/v1/events/tickets")
+    async def create_stream_ticket():
+        return JSONResponse(contract.check("StreamTicket", tickets.issue()), status_code=201)
 
     @app.get("/v1/events")
     async def events(since: int = 0, last_event_id: str | None = Header(default=None)):

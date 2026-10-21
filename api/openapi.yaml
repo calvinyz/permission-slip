@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Permission Slip Gateway API
-  version: 0.1.1
+  version: 0.1.2
   description: |
     The interface between the conversational services (messaging channels,
     the negotiator, the Slack approvals bot, the live dashboard) and the
@@ -167,7 +167,21 @@ paths:
         Each SSE message has `id: <seq>`, `event: <type>` and `data: <Event JSON>`.
         Reconnect with the standard `Last-Event-ID` header, or pass `since`, to
         replay every event after that seq. `since=0` replays everything.
+
+        Browsers' `EventSource` cannot set headers, so browser clients first
+        exchange the bearer token for a stream ticket (`POST /v1/events/tickets`)
+        and pass it as `ticket`. Tickets are single-use and expire after 60
+        seconds, so they are harmless if they end up in logs. On reconnect,
+        fetch a new ticket and resume with `since` set to the last seq seen.
+      security:
+        - bearer: []
+        - {}
       parameters:
+        - name: ticket
+          in: query
+          required: false
+          description: Stream ticket, in place of the Authorization header.
+          schema: { type: string, pattern: "^tkt_[A-Za-z0-9_-]+$" }
         - name: since
           in: query
           required: false
@@ -182,6 +196,18 @@ paths:
           content:
             text/event-stream:
               schema: { $ref: "#/components/schemas/Event" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/events/tickets:
+    post:
+      operationId: createStreamTicket
+      summary: Exchange the bearer token for a single-use event stream ticket
+      responses:
+        "201":
+          description: Ticket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StreamTicket" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /merchant/charge:
@@ -600,6 +626,14 @@ components:
           type: array
           items: { $ref: "#/components/schemas/MatchCheck" }
         coding: { $ref: "#/components/schemas/Coding" }
+
+    StreamTicket:
+      type: object
+      additionalProperties: false
+      required: [ticket, expires_at]
+      properties:
+        ticket: { type: string, pattern: "^tkt_[A-Za-z0-9_-]+$" }
+        expires_at: { $ref: "#/components/schemas/Timestamp" }
 
     Error:
       type: object
