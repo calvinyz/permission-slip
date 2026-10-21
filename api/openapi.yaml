@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Permission Slip Gateway API
-  version: 0.1.0
+  version: 0.1.1
   description: |
     The interface between the conversational services (messaging channels,
     the negotiator, the Slack approvals bot, the live dashboard) and the
@@ -277,7 +277,12 @@ components:
 
     Travel:
       type: object
-      description: Structured trip details. Required for policy checks on airlines and lodging.
+      description: |
+        Structured trip details. The gateway denies `airlines` requests without
+        `cabin_class`, `origin` and `destination`, and `lodging` requests without
+        `nights` (which must match `return_date - depart_date` when both are given).
+        Free text must agree with these fields: an `economy` flight whose
+        description mentions first class, business class or an upgrade is denied.
       additionalProperties: false
       properties:
         cabin_class:

@@ -1,5 +1,7 @@
 """Seed data for the fictional demo company. Values are fixed so every scenario is reproducible."""
 
+import re
+
 COMPANY = "Lumen Labs"
 POLICY_VERSION = "2026-10-20.1"
 
@@ -40,6 +42,13 @@ FARE_HISTORY = {
 }
 ECONOMY_QUOTES = {
     ("PHL", "SFO"): {"merchant": "United Airlines", "amount_usd": 480.00},
+}
+
+# Name patterns for well-known merchants, so a purchase cannot be filed under the wrong category.
+MERCHANT_CATEGORY_HINTS = {
+    "airlines": re.compile(r"\b(airlines?|airways|air lines|jetblue|delta|united|american air|southwest|alaska air)\b", re.I),
+    "lodging": re.compile(r"\b(hotels?|marriott|hilton|hyatt|westin|sheraton|airbnb|inn|resort)\b", re.I),
+    "ground_transport": re.compile(r"\b(uber|lyft|taxi|hertz|avis|enterprise rent)\b", re.I),
 }
 
 GL_ACCOUNTS = {

@@ -5,7 +5,9 @@ Every rule appends to the policy trace so each decision explains itself.
 
 import re
 import statistics
+import unicodedata
 from dataclasses import dataclass, field
+from datetime import date
 
 from . import seed
 from .util import usd
@@ -23,7 +25,27 @@ INJECTION_PATTERNS = {
     ),
     "injection.system_prompt": re.compile(r"\b(system prompt|developer mode|jailbreak|you are now)\b", re.I),
     "injection.force_approve": re.compile(r"\b(must|always|auto(matically)?)\s+approve\b|\bapprove this\b", re.I),
+    "injection.claimed_approval": re.compile(
+        r"\b(already|pre-?)\s?approved\b|\bapproved by\b|\bsigned off\b|\bgave (me )?the (ok|okay|go-ahead)\b|\bsaid it'?s (fine|ok|okay)\b",
+        re.I,
+    ),
 }
+
+# Agent-authored transcript roles; negotiator messages relay the gateway's own words and are not scanned.
+SCANNED_ROLES = {"employee", "personal_agent"}
+
+PREMIUM_CABIN = re.compile(r"\b(first|business)[\s-]class\b|\bpremium economy\b|\bupgrade\b|\blie[\s-]flat\b|\bsuite\b", re.I)
+
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u200e\u200f\u2060\ufeff\u00ad"))
+_LEET = str.maketrans("0134578@$", "oieastbas")
+_DOTTED = re.compile(r"\b(?:[a-z]\.){2,}[a-z]?\b", re.I)
+
+
+def normalize(text: str) -> str:
+    """Undo common obfuscation: compatibility forms, zero-width characters, l33t digits, dotted acronyms."""
+    text = unicodedata.normalize("NFKC", text).translate(_ZERO_WIDTH)
+    text = _DOTTED.sub(lambda m: m.group(0).replace(".", ""), text)
+    return re.sub(r"\w+", lambda m: m.group(0).translate(_LEET) if re.search(r"[a-z]", m.group(0), re.I) else m.group(0), text)
 
 
 @dataclass
@@ -40,13 +62,23 @@ class Outcome:
 def scan_injection(req: dict) -> list[dict]:
     fields = [("description", req["description"]), ("justification", req["justification"])]
     fields += [(f"claims.{k}", str(v)) for k, v in (req.get("claims") or {}).items()]
-    fields += [(f"transcript[{i}]", m["text"]) for i, m in enumerate(req.get("transcript") or [])]
+    fields += [
+        (f"transcript[{i}]", m["text"]) for i, m in enumerate(req.get("transcript") or []) if m["role"] in SCANNED_ROLES
+    ]
     hits = []
     for name, text in fields:
         for rule, pattern in INJECTION_PATTERNS.items():
-            if m := pattern.search(text):
-                hits.append({"field": name, "pattern": rule, "excerpt": text[max(0, m.start() - 20) : m.end() + 20]})
+            for candidate in (text, normalize(text)):
+                if m := pattern.search(candidate):
+                    excerpt = candidate[max(0, m.start() - 20) : m.end() + 20]
+                    hits.append({"field": name, "pattern": rule, "excerpt": excerpt})
+                    break
     return hits
+
+
+def merchant_category_of(merchant: str) -> str | None:
+    """Category implied by a well-known merchant name, if any."""
+    return next((cat for cat, pattern in seed.MERCHANT_CATEGORY_HINTS.items() if pattern.search(merchant)), None)
 
 
 def verify(req: dict) -> list[dict]:
@@ -107,7 +139,7 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
 
     injections = scan_injection(req)
     if not rule("injection.scan", not injections, ", ".join(sorted({h["pattern"] for h in injections})) or "clean"):
-        return deny("Request contains instructions aimed at the approver; claims of authority or urgency do not change policy.", injections=injections)
+        return deny("Request contains instructions aimed at the approver; claims of authority, urgency or prior approval do not change policy.", injections=injections)
 
     if not rule("employee.exists", emp is not None, req["employee_id"]):
         return deny("Unknown employee.")
@@ -119,8 +151,19 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
     if not rule("merchant.blocked", req["merchant"] not in p["blocked_merchants"], req["merchant"]):
         return deny(f"{req['merchant']} is a blocked merchant.")
 
+    implied = merchant_category_of(req["merchant"])
+    if not rule("merchant.category", implied in (None, category), f"{req['merchant']} filed as {category}" + (f", looks like {implied}" if implied else "")):
+        return deny(f"{req['merchant']} must be filed as {implied.replace('_', ' ')}, not {category.replace('_', ' ')}.")
+
     if category == "airlines":
-        cabin = travel.get("cabin_class", "economy")
+        missing = [f for f in ("cabin_class", "origin", "destination") if f not in travel]
+        if not rule("travel.air.details", not missing, "missing " + ", ".join(missing) if missing else "complete"):
+            return deny(f"Flight requests need {', '.join(missing).replace('_', ' ')}.")
+        cabin = travel["cabin_class"]
+        text = f"{req['description']} {req['justification']}"
+        mismatch = cabin == "economy" and PREMIUM_CABIN.search(normalize(text))
+        if not rule("claims.consistency", not mismatch, f"declared {cabin}" + (f", text says '{mismatch.group(0)}'" if mismatch else "")):
+            return deny(f"The request declares economy but describes '{mismatch.group(0)}'.")
         if not rule("travel.air.class", cabin in p["air_cabin_classes"], cabin):
             quote = seed.ECONOMY_QUOTES.get((travel.get("origin"), travel.get("destination")))
             if quote:
@@ -130,7 +173,7 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
                     "amount_usd": quote["amount_usd"],
                     "description": f"{travel['origin']} to {travel['destination']}, economy, {travel.get('depart_date', '')}".strip(", "),
                     "travel": {**travel, "cabin_class": "economy"},
-                    "reason": f"Policy allows economy only; economy at {usd(quote['amount_usd'])} is pre-approved.",
+                    "reason": f"Policy allows economy only; economy at {usd(quote['amount_usd'])} is within policy and can be booked now.",
                 }
                 return Outcome("counter", offer["reason"], verification, trace, counteroffer=offer)
             return deny(f"Policy allows economy only; {cabin.replace('_', ' ')} is out of policy.")
@@ -138,7 +181,14 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
             return deny(f"Flights are capped at {usd(p['air_cap_usd'])}.")
 
     if category == "lodging":
-        nightly = amount / travel.get("nights", 1)
+        nights = travel.get("nights")
+        if travel.get("depart_date") and travel.get("return_date"):
+            stay = (date.fromisoformat(travel["return_date"]) - date.fromisoformat(travel["depart_date"])).days
+        else:
+            stay = nights
+        if not rule("travel.lodging.nights", nights is not None and nights == stay, f"{nights} nights declared, dates give {stay}"):
+            return deny("Hotel requests need a night count that matches the stay dates.")
+        nightly = amount / nights
         if not rule("travel.lodging.nightly", nightly <= p["lodging_nightly_cap_usd"], f"{usd(nightly)}/night"):
             return deny(f"Hotels are capped at {usd(p['lodging_nightly_cap_usd'])} per night.")
 
