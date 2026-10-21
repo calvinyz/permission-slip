@@ -27,7 +27,8 @@ const { values } = parseArgs({
   },
 });
 const url = (process.env.GATEWAY_URL || process.env.RAMP_API_URL || "http://localhost:8000").replace(/\/+$/, "");
-const token = process.env.GATEWAY_API_TOKEN || process.env.RAMP_API_TOKEN || "";
+// "dev-token" is the gateway's own default when GATEWAY_API_TOKEN is unset (local runs only).
+const token = process.env.GATEWAY_API_TOKEN || process.env.RAMP_API_TOKEN || "dev-token";
 const client = new RampClient({ baseUrl: url, token, retries: 0 });
 const c = contract();
 const problems: string[] = [];
@@ -37,7 +38,7 @@ const bad = (m: string) => {
   console.log(`  ✗ ${m}`);
 };
 
-console.log(`Gateway: ${url}\nToken: ${token ? "set" : "NOT SET (calls to /v1 will get 401)"}\nContract: api/openapi.yaml v${c.version}\n`);
+console.log(`Gateway: ${url}\nToken: ${process.env.GATEWAY_API_TOKEN || process.env.RAMP_API_TOKEN ? "from .env" : "dev-token (the gateway's local default)"}\nContract: api/openapi.yaml v${c.version}\n`);
 
 console.log("1. GET /healthz");
 try {

@@ -29,7 +29,8 @@ const { values } = parseArgs({ options: { only: { type: "string" }, service: { t
 // GW is this conversation service; RAMP_URL is Calvin's gateway.
 const GW = (values.service ?? process.env.CONVERSATION_URL ?? `http://localhost:${process.env.PORT ?? 8787}`).replace(/\/+$/, "");
 const RAMP_URL = (process.env.GATEWAY_URL ?? process.env.RAMP_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
-const ramp = new RampClient({ baseUrl: RAMP_URL, token: process.env.GATEWAY_API_TOKEN ?? process.env.RAMP_API_TOKEN });
+// "dev-token" is the gateway's own default (services/gateway, GATEWAY_API_TOKEN unset), as used by npm run demo:local.
+const ramp = new RampClient({ baseUrl: RAMP_URL, token: process.env.GATEWAY_API_TOKEN || process.env.RAMP_API_TOKEN || "dev-token" });
 const MAYA = normalizePhone(process.env.INSTINCT_NUMBER_MAYA ?? "+15550000001");
 const DEV = normalizePhone(process.env.MUSE_NUMBER_DEV ?? "+15550000002");
 const only = values.only ? new Set(values.only.split(",").map((s) => s.trim())) : undefined;
