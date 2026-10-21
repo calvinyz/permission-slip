@@ -1,0 +1,10 @@
+{
+  "pan": "4242424242424242",
+  "cvc": "123",
+  "exp_month": 10,
+  "exp_year": 2026,
+  "merchant": "Demo Air (test merchant)",
+  "merchant_category": "airlines",
+  "amount_usd": 620.0,
+  "description": "PHL-SFO economy plus undisclosed fees"
+}

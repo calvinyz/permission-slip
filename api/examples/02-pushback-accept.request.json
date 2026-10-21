@@ -1,0 +1,22 @@
+{
+  "request_id": "req_s2_flight_economy",
+  "parent_request_id": "req_s2_flight_first",
+  "agent_id": "claude:tok_dev",
+  "channel": "mcp",
+  "employee_id": "emp_dev",
+  "merchant": "United Airlines",
+  "merchant_category": "airlines",
+  "amount_usd": 480.0,
+  "description": "PHL to SFO, economy, 2026-10-27",
+  "justification": "Acme customer meeting",
+  "travel": {
+    "cabin_class": "economy",
+    "origin": "PHL",
+    "destination": "SFO",
+    "depart_date": "2026-10-27"
+  },
+  "claims": {
+    "meeting": "Acme",
+    "date": "2026-10-27"
+  }
+}

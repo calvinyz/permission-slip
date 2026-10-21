@@ -1,0 +1,15 @@
+{
+  "request_id": "req_s3_conference",
+  "agent_id": "instinct:+15551230001",
+  "channel": "sms",
+  "employee_id": "emp_maya",
+  "merchant": "AI Engineer Summit",
+  "merchant_category": "conferences",
+  "amount_usd": 2400.0,
+  "description": "AI Engineer Summit, full conference pass, Nov 3-4",
+  "justification": "Team learning budget; evaluating agent tooling",
+  "claims": {
+    "event": "AI Engineer Summit",
+    "date": "2026-11-03"
+  }
+}
