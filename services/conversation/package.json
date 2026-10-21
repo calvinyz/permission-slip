@@ -1,0 +1,43 @@
+{
+  "name": "@permission-slip/conversation",
+  "version": "1.0.0",
+  "description": "Conversational services for Permission Slip: channels, negotiator, MCP server, Slack approvals, live dashboard",
+  "scripts": {
+    "dev": "node --import tsx --watch src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "demo:local": "node --import tsx scripts/local-demo.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node --import tsx --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "scenarios": "node --import tsx scripts/run-scenarios.ts",
+    "smoke": "node --import tsx scripts/smoke-gateway.ts",
+    "sim:sms": "node --import tsx scripts/simulate-sms.ts",
+    "sim:email": "node --import tsx scripts/simulate-email.ts",
+    "latency": "node --import tsx scripts/latency-report.ts"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@slack/bolt": "5.1.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "eventsource-parser": "4.1.1",
+    "express": "5.2.1",
+    "twilio": "6.1.2",
+    "zod": "4.6.5",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "@types/supertest": "6.0.3",
+    "supertest": "7.3.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}

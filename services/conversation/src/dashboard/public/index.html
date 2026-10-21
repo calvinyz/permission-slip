@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permission Slip</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%224%22 fill=%22%232F44C9%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Permission Slip</h1>
+      <span id="company" class="muted"></span>
+    </div>
+    <div class="status-row">
+      <span class="conn" id="conn-ramp" data-state="unknown"><i></i><span>Gateway events</span></span>
+      <span class="conn" id="conn-dash" data-state="unknown"><i></i><span>Live</span></span>
+      <span class="tag" id="brain"></span>
+    </div>
+    <div class="clock" aria-label="Current time">
+      <span id="clock-time" class="mono">--:--:--</span>
+      <span id="clock-date" class="muted"></span>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="Requests">
+    <button type="button" id="follow" class="follow" aria-pressed="true" title="Always show the newest request (F)">Follow latest</button>
+    <div id="chips" class="chips"></div>
+  </nav>
+
+  <section class="timeline" aria-label="Request progress">
+    <ol id="steps"></ol>
+  </section>
+
+  <main class="grid">
+    <section class="panel" id="p-convo" aria-labelledby="h-convo">
+      <div class="panel-h"><h2 id="h-convo"><span class="num">1</span>Agent conversation</h2><span id="convo-meta" class="tag"></span></div>
+      <div id="convo" class="convo" aria-live="polite"></div>
+    </section>
+    <section class="panel" id="p-policy" aria-labelledby="h-policy">
+      <div class="panel-h"><h2 id="h-policy"><span class="num">2</span>Verification and policy</h2><span id="policy-version" class="tag mono"></span></div>
+      <div id="policy" class="policy" aria-live="polite"></div>
+    </section>
+    <section class="panel" id="p-card" aria-labelledby="h-card">
+      <div class="panel-h"><h2 id="h-card"><span class="num">3</span>Mandate and card</h2><span id="card-timer" class="tag mono"></span></div>
+      <div id="card" class="cardpanel" aria-live="polite"></div>
+    </section>
+    <section class="panel" id="p-txn" aria-labelledby="h-txn">
+      <div class="panel-h"><h2 id="h-txn"><span class="num">4</span>Transaction</h2></div>
+      <div id="txn" class="txnpanel" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span class="muted">The language model negotiates. The policy engine decides. The signed mandate enforces.</span>
+    <span class="keys muted"><kbd>←</kbd><kbd>→</kbd> requests · <kbd>F</kbd> follow · <kbd>L</kbd> raw log · <kbd>T</kbd> theme</span>
+    <button type="button" id="logbtn" class="linkbtn" aria-expanded="false" aria-controls="rawlog">Raw event log</button>
+  </footer>
+  <section id="rawlog" class="rawlog" hidden aria-label="Raw event log"><pre id="rawlog-pre"></pre></section>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
