@@ -4,103 +4,196 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Card Issuer Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%224%22 fill=%22%23000%22/%3E%3Crect x=%223.5%22 y=%225%22 width=%229%22 height=%226%22 rx=%221.2%22 fill=%22%23E4F222%22/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <style>
+    /* Matches the approvals dashboard: black, white, warm off-white, one chartreuse accent. */
     :root {
-      --bg: #f6f6f4; --surface: #ffffff; --text: #16181d; --muted: #646a73; --border: #e2e3e0;
-      --accent: #1f5eff; --accent-text: #ffffff; --banner: #eef2ff; --banner-text: #2a3a7a;
-      --ok: #0f7b45; --ok-bg: #e6f5ec; --bad: #b42318; --bad-bg: #fdecea; --idle: #646a73; --idle-bg: #efefed;
-      --flash: #fff7d6;
+      --accent: #E4F222; --accent-soft: #F4F9C2; --on-accent: #000000;
+      --bg: #F3F3EE; --surface: #FFFFFF; --sunk: #F6F6F2; --ink: #000000; --ink2: #4B4C50; --muted: #77787D;
+      --line: #E7E7E1; --line2: #D8D8D1;
+      --good: #137A47; --good-bg: #E8F5EC; --bad: #CC2F27; --bad-bg: #FCEAE8; --idle: #5F6066; --idle-bg: #EEEEE9;
+      --side: #000000; --side2: #161616; --side-ink: #FFFFFF; --side-muted: #9A9A94; --side-line: #262626;
+      --flash: #F4F9C2; --chip: #000000;
+      --f-body: "Manrope", "Helvetica Neue", Arial, system-ui, sans-serif;
+      --f-id: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      color-scheme: light;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #111214; --surface: #1a1c1f; --text: #ececec; --muted: #9aa0a8; --border: #2c2f34;
-        --accent: #5b8cff; --accent-text: #0b0c0e; --banner: #1c2240; --banner-text: #b9c6ff;
-        --ok: #5fd39a; --ok-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1714; --idle: #9aa0a8; --idle-bg: #26282c;
-        --flash: #3a3313;
+        --accent-soft: #2A2E08;
+        --bg: #0A0A0A; --surface: #151515; --sunk: #1C1C1C; --ink: #FFFFFF; --ink2: #C9C9C4; --muted: #8E8E88;
+        --line: #242424; --line2: #313131;
+        --good: #4CCB8A; --good-bg: #12261B; --bad: #F2766C; --bad-bg: #2E1614; --idle: #A3A39D; --idle-bg: #222222;
+        --side2: #141414; --side-line: #222222; --flash: #2A2E08; --chip: #2E2E2E;
+        color-scheme: dark;
       }
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
-    .banner { background: var(--banner); color: var(--banner-text); text-align: center; padding: 8px 16px; font-size: 13px; font-weight: 600; }
-    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
-    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-    h1 { margin: 0; font-size: 22px; }
-    .live { color: var(--muted); font-size: 13px; }
-    .live::before { content: "●"; margin-right: 6px; color: var(--idle); }
-    .live.on::before { color: var(--ok); }
-    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-    @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-    .stat .label { color: var(--muted); font-size: 12px; }
-    .stat .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
-    section h2 { font-size: 14px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--f-id); font-size: 13px; }
+
+    .app { display: grid; grid-template-columns: 260px 1fr; min-height: 100%; }
+    @media (max-width: 860px) { .app { grid-template-columns: 1fr; } }
+
+    /* Sidebar */
+    .side { background: var(--side); color: var(--side-ink); padding: 24px 18px; display: flex; flex-direction: column; gap: 28px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); position: relative; flex: none; }
+    .logo::after { content: ""; position: absolute; inset: 11px 8px; border: 2px solid var(--on-accent); border-radius: 3px; }
+    .brand b { display: block; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand span { display: block; color: var(--side-muted); font-size: 13px; }
+    .nav { display: grid; gap: 4px; }
+    .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; color: var(--side-muted); text-decoration: none; font-weight: 600; font-size: 14px; }
+    .nav a:hover { background: var(--side2); color: var(--side-ink); }
+    .nav a.on { background: var(--side2); color: var(--side-ink); }
+    .nav a.on::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .side .note { margin-top: auto; padding: 14px; border: 1px solid var(--side-line); border-radius: 12px; color: var(--side-muted); font-size: 12.5px; line-height: 1.5; }
+    .side .note b { color: var(--side-ink); font-weight: 700; }
+    .side .live { display: none; }
+    @media (max-width: 860px) {
+      .side { flex-direction: row; align-items: center; justify-content: space-between; padding: 14px 16px; gap: 12px; }
+      .nav, .side .note { display: none; }
+    }
+
+    /* Main */
+    main { padding: 32px 36px 64px; min-width: 0; }
+    @media (max-width: 860px) { main { padding: 20px 16px 48px; } }
+    .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+    .sub { margin: 6px 0 0; color: var(--muted); }
+    .live { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--ink2); }
+    .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+    .live.on i { background: var(--good); box-shadow: 0 0 0 3px var(--good-bg); }
+
+    .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px 20px; min-width: 0; }
+    .kpi .label { color: var(--muted); font-size: 13px; font-weight: 600; }
+    .kpi .value { margin-top: 6px; font-size: clamp(22px, 2.4vw, 30px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+    .kpi .hint { margin-top: 4px; color: var(--muted); font-size: 12.5px; }
+    .kpi.dark { background: var(--side); border-color: var(--side); color: var(--side-ink); }
+    .kpi.dark .label, .kpi.dark .hint { color: var(--side-muted); }
+    .kpi.dark .value { color: var(--accent); }
+    .kpi.alert .value { color: var(--bad); }
+
+    .box { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; margin-bottom: 18px; overflow: hidden; scroll-margin-top: 16px; }
+    .box-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; }
+    .box-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+    .box-h .count { color: var(--muted); font-size: 13px; font-weight: 600; }
     .scroll { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-    th { color: var(--muted); font-weight: 500; font-size: 12px; }
+    th, td { text-align: left; padding: 12px 16px; white-space: nowrap; }
+    th:first-child, td:first-child { padding-left: 20px; }
+    th { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; background: var(--sunk); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    td { border-bottom: 1px solid var(--line); }
     tr:last-child td { border-bottom: 0; }
-    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    td.wrap { white-space: normal; min-width: 220px; color: var(--muted); }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-    .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-    .chip.active, .chip.reconciled { background: var(--ok-bg); color: var(--ok); }
-    .chip.suspended, .chip.mismatch { background: var(--bad-bg); color: var(--bad); }
-    .chip.closed, .chip.settled { background: var(--idle-bg); color: var(--idle); }
-    .empty { padding: 20px 16px; color: var(--muted); }
-    tr.flash td { animation: flash 2s ease-out; }
+    th.num, td.num { text-align: right; }
+    td.amount { font-weight: 700; }
+    td.wrap { white-space: normal; min-width: 200px; color: var(--ink2); font-size: 13.5px; }
+    td.muted, span.muted { color: var(--muted); }
+    .coding { display: grid; line-height: 1.35; }
+    .coding b { font-weight: 700; font-size: 14px; }
+    .coding span { color: var(--muted); font-size: 12.5px; }
+    .empty { padding: 28px 20px; color: var(--muted); text-align: center; border-top: 1px solid var(--line); }
+
+    .cardchip { display: inline-flex; align-items: center; gap: 10px; }
+    .cardchip i { width: 34px; height: 22px; border-radius: 5px; background: var(--chip); position: relative; flex: none; }
+    .cardchip i::after { content: ""; position: absolute; left: 5px; right: 5px; bottom: 5px; height: 3px; border-radius: 2px; background: var(--accent); }
+    .who { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; }
+    .who i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--chip); color: var(--side-ink); font-style: normal; font-size: 12px; font-weight: 700; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--sunk); border: 1px solid var(--line2); color: var(--ink2); font-size: 12.5px; font-weight: 600; text-transform: capitalize; }
+
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; text-transform: capitalize; }
+    .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .pill.active { background: var(--accent); color: var(--on-accent); }
+    .pill.reconciled { background: var(--good-bg); color: var(--good); }
+    .pill.suspended, .pill.mismatch { background: var(--bad-bg); color: var(--bad); }
+    .pill.closed, .pill.settled { background: var(--idle-bg); color: var(--idle); }
+    tr.mismatch td { background: color-mix(in srgb, var(--bad-bg) 55%, transparent); }
+
+    tr.flash td { animation: flash 2.4s ease-out; }
     @keyframes flash { from { background: var(--flash); } to { background: transparent; } }
-    .gate { max-width: 420px; margin: 80px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-    .gate h1 { margin-bottom: 8px; }
-    .gate p { color: var(--muted); margin: 0 0 16px; }
-    .gate input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
-    .gate button { margin-top: 12px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
-    .gate .error { color: var(--bad); margin-top: 8px; min-height: 1.5em; }
+    @media (prefers-reduced-motion: reduce) { tr.flash td { animation: none; } }
+
+    /* Sign-in */
+    .gate { min-height: 100%; display: grid; place-items: center; padding: 16px; }
+    .gate form { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 28px; }
+    .gate .brand { margin-bottom: 22px; }
+    .gate .brand span { color: var(--muted); }
+    .gate h1 { font-size: 24px; margin-bottom: 6px; }
+    .gate p { color: var(--muted); margin: 0 0 18px; }
+    .gate label { display: block; font-size: 13px; font-weight: 600; color: var(--ink2); margin-bottom: 6px; }
+    .gate input { width: 100%; padding: 11px 12px; border: 1px solid var(--line2); border-radius: 12px; background: var(--sunk); color: var(--ink); font: inherit; }
+    .gate input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+    .gate button { margin-top: 14px; width: 100%; padding: 12px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 800; cursor: pointer; }
+    .gate .error { color: var(--bad); margin-top: 10px; min-height: 1.5em; font-size: 13px; }
+    .gate .disclaimer { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
   </style>
 </head>
 <body>
-  <div class="banner" role="note">Simulated card issuer · Stands in for the Ramp sandbox until API access is granted · No real money moves</div>
+  <div class="gate" id="gate" hidden>
+    <form id="gate-form" autocomplete="off">
+      <div class="brand"><div class="logo" aria-hidden="true"></div><div><b>Permission Slip</b><span>Card issuer console</span></div></div>
+      <h1>Sign in</h1>
+      <p>Enter the gateway API token to view cards.</p>
+      <label for="token">API token</label>
+      <input id="token" type="password" required>
+      <button type="submit">Open console</button>
+      <div class="error" id="gate-error" role="alert"></div>
+      <div class="disclaimer">Simulated card issuer. It stands in for the Ramp sandbox until API access is granted. No real money moves.</div>
+    </form>
+  </div>
 
-  <form class="gate" id="gate" hidden>
-    <h1>Card issuer console</h1>
-    <p>Enter the gateway API token to view cards.</p>
-    <label for="token" class="label">API token</label>
-    <input id="token" type="password" autocomplete="off" required>
-    <button type="submit">Open console</button>
-    <div class="error" id="gate-error" role="alert"></div>
-  </form>
+  <div class="app" id="console" hidden>
+    <aside class="side">
+      <div class="brand"><div class="logo" aria-hidden="true"></div><div><b>Permission Slip</b><span>Lumen Labs</span></div></div>
+      <nav class="nav" aria-label="Sections">
+        <a href="#cards-box" class="on">Cards</a>
+        <a href="#txns-box">Transactions</a>
+      </nav>
+      <div class="note"><b>Simulated card issuer.</b> Stands in for the Ramp sandbox until API access is granted. No real money moves.</div>
+    </aside>
 
-  <main id="console" hidden>
-    <header>
-      <h1>Card issuer console</h1>
-      <span class="live" id="live">Connecting…</span>
-    </header>
+    <main>
+      <div class="head">
+        <div>
+          <h1>Cards</h1>
+          <p class="sub">Single-use virtual cards, each issued against a signed mandate.</p>
+        </div>
+        <span class="live" id="live"><i></i><span>Connecting</span></span>
+      </div>
 
-    <div class="stats">
-      <div class="stat"><div class="label">Active cards</div><div class="value" id="stat-active">0</div></div>
-      <div class="stat"><div class="label">Approved limits</div><div class="value" id="stat-limits">$0.00</div></div>
-      <div class="stat"><div class="label">Reconciled spend</div><div class="value" id="stat-spend">$0.00</div></div>
-      <div class="stat"><div class="label">Suspended cards</div><div class="value" id="stat-suspended">0</div></div>
-    </div>
+      <section class="kpis" aria-label="Summary">
+        <div class="kpi"><div class="label">Active cards</div><div class="value" id="stat-active">0</div><div class="hint">Ready for checkout</div></div>
+        <div class="kpi"><div class="label">Approved limits</div><div class="value" id="stat-limits">$0.00</div><div class="hint">Across every card issued</div></div>
+        <div class="kpi dark"><div class="label">Reconciled spend</div><div class="value" id="stat-spend">$0.00</div><div class="hint">Matched and coded, no expense reports</div></div>
+        <div class="kpi" id="kpi-suspended"><div class="label">Suspended cards</div><div class="value" id="stat-suspended">0</div><div class="hint">Stopped on a settlement mismatch</div></div>
+      </section>
 
-    <section>
-      <h2>Virtual cards</h2>
-      <div class="scroll"><table>
-        <thead><tr><th>Card</th><th>Employee</th><th>Merchant</th><th>Locked to</th><th class="num">Limit</th><th>Status</th><th>Expires</th></tr></thead>
-        <tbody id="cards"></tbody>
-      </table></div>
-      <div class="empty" id="cards-empty">No cards issued yet.</div>
-    </section>
+      <section class="box" id="cards-box">
+        <div class="box-h"><h2>Virtual cards</h2><span class="count" id="cards-count"></span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>Card</th><th>Employee</th><th>Merchant</th><th>Locked to</th><th class="num">Limit</th><th>Status</th><th>Expires</th></tr></thead>
+          <tbody id="cards"></tbody>
+        </table></div>
+        <div class="empty" id="cards-empty">No cards issued yet.</div>
+      </section>
 
-    <section>
-      <h2>Transactions</h2>
-      <div class="scroll"><table>
-        <thead><tr><th>Settled</th><th>Card</th><th>Merchant</th><th class="num">Amount</th><th>Status</th><th>GL account</th><th>Department</th><th>Memo</th></tr></thead>
-        <tbody id="txns"></tbody>
-      </table></div>
-      <div class="empty" id="txns-empty">No transactions yet.</div>
-    </section>
-  </main>
+      <section class="box" id="txns-box">
+        <div class="box-h"><h2>Transactions</h2><span class="count" id="txns-count"></span></div>
+        <div class="scroll"><table>
+          <thead><tr><th>Settled</th><th>Card</th><th>Merchant</th><th class="num">Amount</th><th>Status</th><th>Coding</th><th>Memo</th></tr></thead>
+          <tbody id="txns"></tbody>
+        </table></div>
+        <div class="empty" id="txns-empty">No transactions yet.</div>
+      </section>
+    </main>
+  </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -108,6 +201,7 @@
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
     const time = (ts) => new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     const person = (id) => id.replace(/^emp_/, "").replace(/^./, (c) => c.toUpperCase());
+    const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
     const store = {
       get() { try { return sessionStorage.getItem("gateway-token"); } catch { return null; } },
@@ -133,43 +227,55 @@
       return true;
     }
 
+    const cardCell = (last4) => `<span class="cardchip"><i aria-hidden="true"></i><span class="mono">•••• ${esc(last4)}</span></span>`;
+
     function render() {
       const cardList = [...cards.values()].reverse();
       $("cards").innerHTML = cardList.map((c) => {
         const m = mandates.get(c.mandate_id) || {};
+        const name = m.employee_id ? person(m.employee_id) : "";
         return `<tr class="${!replaying && fresh.has(c.card_id) ? "flash" : ""}">
-          <td class="mono">•••• ${esc(c.last4)}</td>
-          <td>${esc(m.employee_id ? person(m.employee_id) : "")}</td>
+          <td>${cardCell(c.last4)}</td>
+          <td>${name ? `<span class="who"><i aria-hidden="true">${esc(name[0])}</i>${esc(name)}</span>` : ""}</td>
           <td>${esc(m.merchant)}</td>
-          <td>${esc(c.merchant_lock.replace("_", " "))}</td>
-          <td class="num">${usd(c.limit_usd)}</td>
-          <td><span class="chip ${esc(c.status)}">${esc(c.status)}</span></td>
-          <td>${time(c.expires_at)}</td></tr>`;
+          <td><span class="tag">${esc(c.merchant_lock.replace("_", " "))}</span></td>
+          <td class="num amount">${usd(c.limit_usd)}</td>
+          <td><span class="pill ${esc(c.status)}">${esc(c.status)}</span></td>
+          <td class="muted">${time(c.expires_at)}</td></tr>`;
       }).join("");
       $("cards-empty").hidden = cardList.length > 0;
+      $("cards-count").textContent = cardList.length ? plural(cardList.length, "card") : "";
 
       const txnList = [...txns.values()].reverse();
       $("txns").innerHTML = txnList.map((t) => {
         const card = cards.get(t.card_id);
         const memo = t.coding?.memo ?? (t.match || []).filter((x) => x.result === "mismatch").map((x) => `${x.field.replace("_usd", "")}: expected ${x.expected}, got ${x.actual}`).join("; ");
-        return `<tr class="${!replaying && fresh.has(t.txn_id) ? "flash" : ""}">
-          <td>${time(t.settled_at)}</td>
-          <td class="mono">•••• ${esc(card?.last4 ?? "")}</td>
+        const rowClass = [!replaying && fresh.has(t.txn_id) ? "flash" : "", t.status === "mismatch" ? "mismatch" : ""].join(" ").trim();
+        return `<tr class="${rowClass}">
+          <td class="muted">${time(t.settled_at)}</td>
+          <td>${cardCell(card?.last4 ?? "")}</td>
           <td>${esc(t.merchant)}</td>
-          <td class="num">${usd(t.amount_usd)}</td>
-          <td><span class="chip ${esc(t.status)}">${esc(t.status)}</span></td>
-          <td>${esc(t.coding?.gl_account ?? "—")}</td>
-          <td>${esc(t.coding?.department ?? "—")}</td>
+          <td class="num amount">${usd(t.amount_usd)}</td>
+          <td><span class="pill ${esc(t.status)}">${esc(t.status)}</span></td>
+          <td>${t.coding ? `<span class="coding"><b>${esc(t.coding.gl_account)}</b><span>${esc(t.coding.department)}</span></span>` : `<span class="muted">Not coded</span>`}</td>
           <td class="wrap">${esc(memo)}</td></tr>`;
       }).join("");
       $("txns-empty").hidden = txnList.length > 0;
+      $("txns-count").textContent = txnList.length ? plural(txnList.length, "transaction") : "";
 
       const all = [...cards.values()];
+      const suspended = all.filter((c) => c.status === "suspended").length;
       $("stat-active").textContent = all.filter((c) => c.status === "active").length;
-      $("stat-suspended").textContent = all.filter((c) => c.status === "suspended").length;
+      $("stat-suspended").textContent = suspended;
+      $("kpi-suspended").classList.toggle("alert", suspended > 0);
       $("stat-limits").textContent = usd(all.reduce((s, c) => s + c.limit_usd, 0));
       $("stat-spend").textContent = usd(txnList.filter((t) => t.status === "reconciled").reduce((s, t) => s + t.amount_usd, 0));
       fresh = new Set();
+    }
+
+    function setLive(on, text) {
+      $("live").className = on ? "live on" : "live";
+      $("live").lastElementChild.textContent = text;
     }
 
     let lastSeq = 0, pending = null;
@@ -188,7 +294,7 @@
 
       const source = new EventSource(`/v1/events?since=${lastSeq}&ticket=${encodeURIComponent(ticket)}`);
       source.onopen = () => {
-        $("live").className = "live on"; $("live").textContent = "Live";
+        setLive(true, "Live");
         // The backlog arrives in a burst; render it once, then highlight only new rows.
         setTimeout(() => { replaying = false; }, 500);
       };
@@ -210,11 +316,11 @@
     }
 
     function retry(token) {
-      $("live").className = "live"; $("live").textContent = "Reconnecting…";
+      setLive(false, "Reconnecting");
       setTimeout(() => connect(token), 2000);
     }
 
-    $("gate").addEventListener("submit", (e) => {
+    $("gate-form").addEventListener("submit", (e) => {
       e.preventDefault();
       const token = $("token").value.trim();
       store.set(token);
@@ -223,7 +329,7 @@
     });
 
     const saved = store.get();
-    if (saved) connect(saved); else $("gate").hidden = false;
+    if (saved) connect(saved); else { $("gate").hidden = false; $("token").focus(); }
   </script>
 </body>
 </html>

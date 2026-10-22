@@ -1,8 +1,8 @@
-/* Permission Slip dashboard: black, white, warm off-white, one blue accent shared with the gateway's pages.
+/* Permission Slip dashboard: black, white, warm off-white, one chartreuse accent (shared with the issuer console).
    Dark request queue (left), the selected request (center), the agent conversation (right).
    Sized for a 1920x1080 screen recording; stacks to one column on narrow screens. */
 :root {
-  --accent: #1F5EFF; --accent-soft: #E3EBFF; --on-accent: #FFFFFF;
+  --accent: #E4F222; --accent-soft: #F4F9C2; --on-accent: #000000;
   --bg: #F3F3EE; --surface: #FFFFFF; --sunk: #F6F6F2; --ink: #000000; --ink2: #4B4C50; --muted: #77787D; --line: #E7E7E1; --line2: #D8D8D1;
   --good: #137A47; --warn: #A35F00; --bad: #CC2F27;
   --good-bg: #E8F5EC; --warn-bg: #FBF1DF; --bad-bg: #FCEAE8;
@@ -14,13 +14,13 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --accent-soft: #14214A;
+  --accent-soft: #2A2E08;
   --bg: #0A0A0A; --surface: #151515; --sunk: #1C1C1C; --ink: #FFFFFF; --ink2: #C9C9C4; --muted: #8E8E88; --line: #242424; --line2: #313131;
   --good: #4CCB8A; --warn: #E6A84D; --bad: #F2766C;
   --good-bg: #12261B; --warn-bg: #2B2212; --bad-bg: #2E1614;
   --side: #000000; --side2: #141414; --side-line: #222222; --card: #000000; color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --accent-soft: #14214A;
+  --accent-soft: #2A2E08;
   --bg: #0A0A0A; --surface: #151515; --sunk: #1C1C1C; --ink: #FFFFFF; --ink2: #C9C9C4; --muted: #8E8E88; --line: #242424; --line2: #313131;
   --good: #4CCB8A; --warn: #E6A84D; --bad: #F2766C;
   --good-bg: #12261B; --warn-bg: #2B2212; --bad-bg: #2E1614;
