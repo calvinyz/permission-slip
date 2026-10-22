@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Permission Slip</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%224%22 fill=%22%23000%22/%3E%3Crect x=%223.5%22 y=%225%22 width=%229%22 height=%226%22 rx=%221.2%22 fill=%22%231F5EFF%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" aria-label="Requests">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>Permission Slip</h1>
+        <span id="company"></span>
+      </div>
+    </div>
+    <div class="side-h">
+      <h2>Requests</h2>
+      <button type="button" id="follow" class="follow" aria-pressed="true" title="Always show the newest request (F)">Follow latest</button>
+    </div>
+    <div id="chips" class="chips"></div>
+    <p class="motto">The language model negotiates. The policy engine decides. The signed mandate enforces.</p>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div>
+        <h2 class="page-title">Agent spend approvals</h2>
+        <p class="page-sub">
+          <span class="conn" id="conn-gateway" data-state="unknown"><i></i>Gateway</span>
+          <span class="conn" id="conn-dash" data-state="unknown"><i></i>Live</span>
+          <span class="tag" id="brain"></span>
+        </p>
+      </div>
+      <div class="clock" aria-label="Current time">
+        <span id="clock-time">--:--:--</span>
+        <span id="clock-date"></span>
+      </div>
+    </header>
+
+    <section id="kpis" class="kpis" aria-label="Today"></section>
+
+    <section class="box req" aria-live="polite">
+      <div class="req-head">
+        <span id="rq-icon" class="cat big" aria-hidden="true"></span>
+        <div class="req-main">
+          <h3 id="rq-title">No requests yet</h3>
+          <p id="rq-desc"></p>
+          <p id="rq-meta"></p>
+        </div>
+        <div class="req-side">
+          <span id="rq-amount" class="amount"></span>
+          <span id="rq-status"></span>
+        </div>
+      </div>
+      <ol id="steps" class="steps" aria-label="Request progress"></ol>
+    </section>
+
+    <div class="lower">
+      <section class="box" id="p-policy" aria-labelledby="h-policy">
+        <div class="box-h"><h3 id="h-policy">Decision</h3><span id="policy-version" class="tag"></span></div>
+        <div id="policy" class="policy" aria-live="polite"></div>
+      </section>
+      <div class="stack">
+        <section class="box" id="p-card" aria-labelledby="h-card">
+          <div class="box-h"><h3 id="h-card">Card and mandate</h3><span id="card-timer" class="tag"></span></div>
+          <div id="card" class="cardpanel" aria-live="polite"></div>
+        </section>
+        <section class="box" id="p-txn" aria-labelledby="h-txn">
+          <div class="box-h"><h3 id="h-txn">Charge</h3></div>
+          <div id="txn" class="txnpanel" aria-live="polite"></div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <span class="keys"><kbd>←</kbd><kbd>→</kbd> switch request <kbd>F</kbd> follow latest <kbd>L</kbd> event log <kbd>T</kbd> theme</span>
+      <button type="button" id="logbtn" class="linkbtn" aria-expanded="false" aria-controls="rawlog">Show event log</button>
+    </footer>
+    <section id="rawlog" class="rawlog" hidden aria-label="Event log"><pre id="rawlog-pre"></pre></section>
+  </main>
+
+  <section class="chat" id="p-convo" aria-labelledby="h-convo">
+    <div class="chat-h">
+      <h3 id="h-convo">Conversation</h3>
+      <span id="convo-meta" class="tag"></span>
+    </div>
+    <div id="convo" class="convo" aria-live="polite"></div>
+    <p class="chat-foot">Agents reach Permission Slip by text, email, or as a Claude or ChatGPT connector.</p>
+  </section>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

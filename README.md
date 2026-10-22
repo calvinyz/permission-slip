@@ -16,6 +16,7 @@ The conversational services talk; the gateway decides. Language models negotiate
 | --- | --- |
 | [`api/`](api/) | The HTTP + event-stream contract (OpenAPI 3.1) and example payloads. The only thing services share. |
 | [`services/gateway/`](services/gateway/) | Decisioning service: claim verification, policy engine, signed mandates, card issuing, settlement and reconciliation, plus the demo merchant. Python / FastAPI. |
+| [`services/conversation/`](services/conversation/) | Conversational services: SMS and email channels, the LLM negotiator, the MCP server for Claude and ChatGPT, Slack approvals, and the live demo dashboard. TypeScript / Node. |
 
 Services never import each other's code. They integrate only through `api/openapi.yaml`, and each validates its own traffic against it.
 
@@ -27,6 +28,16 @@ uv sync
 uv run pytest                                   # contract + scenario tests
 uv run uvicorn --factory gateway.app:create_app --reload         # http://localhost:8000
 uv run python scripts/run_scenarios.py          # drive all demo scenarios against it
+```
+
+Then the conversational side, in a second terminal (starts the gateway itself if it isn't running):
+
+```bash
+cd services/conversation
+npm install
+npm run demo:local                              # http://localhost:8787/dashboard/
+npm run scenarios                               # all five scenarios through SMS, MCP and Slack
+npm test                                        # includes end-to-end tests against the real gateway
 ```
 
 Mock the API from the contract instead (for building clients without the gateway):
