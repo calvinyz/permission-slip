@@ -2,18 +2,18 @@
   "company": "Lumen Labs (must match services/gateway/gateway/seed.py)",
   "employees": [
     { "employee_id": "emp_maya", "name": "Maya Chen", "title": "Engineer", "home_airport": "PHL", "slack_user_id": "${SLACK_ID_MAYA}" },
-    { "employee_id": "emp_dev", "name": "Dev Patel", "title": "Sales", "home_airport": "PHL", "slack_user_id": "${SLACK_ID_DEV}" },
+    { "employee_id": "emp_noah", "name": "Noah Kim", "title": "Sales", "home_airport": "PHL", "slack_user_id": "${SLACK_ID_NOAH}" },
     { "employee_id": "emp_priya", "name": "Priya Rao", "title": "Engineering manager", "slack_user_id": "${SLACK_ID_PRIYA}" },
     { "employee_id": "emp_jordan", "name": "Jordan Lee", "title": "Sales manager", "slack_user_id": "${SLACK_ID_JORDAN}" },
     { "employee_id": "emp_sam", "name": "Sam Ortiz", "title": "Finance", "slack_user_id": "${SLACK_ID_SAM}" }
   ],
   "agents": [
-    { "kind": "instinct", "channel": "sms", "employee_id": "emp_maya", "credential": "${INSTINCT_NUMBER_MAYA}", "label": "Instinct (Maya)" },
-    { "kind": "muse", "channel": "sms", "employee_id": "emp_dev", "credential": "${MUSE_NUMBER_DEV}", "label": "Muse (Dev)" },
-    { "kind": "muse", "channel": "email", "employee_id": "emp_dev", "credential": "${MUSE_EMAIL_DEV}", "label": "Muse (Dev)" },
-    { "kind": "claude", "channel": "mcp", "employee_id": "emp_dev", "credential": "${MCP_TOKEN_CLAUDE_DEV}", "label": "Claude (Dev)" },
-    { "kind": "chatgpt", "channel": "mcp", "employee_id": "emp_dev", "credential": "${MCP_TOKEN_CHATGPT_DEV}", "label": "ChatGPT (Dev)" },
+    { "kind": "muse", "channel": "sms", "employee_id": "emp_maya", "credential": "${MUSE_NUMBER_MAYA}", "label": "Muse (Maya)" },
+    { "kind": "muse", "channel": "email", "employee_id": "emp_maya", "credential": "${MUSE_EMAIL_MAYA}", "label": "Muse (Maya)" },
     { "kind": "claude", "channel": "mcp", "employee_id": "emp_maya", "credential": "${MCP_TOKEN_CLAUDE_MAYA}", "label": "Claude (Maya)" },
-    { "kind": "instinct", "channel": "sms", "employee_id": "emp_maya", "credential": "${REHEARSAL_NUMBER_MAYA}", "label": "Rehearsal phone (Maya)" }
+    { "kind": "chatgpt", "channel": "mcp", "employee_id": "emp_maya", "credential": "${MCP_TOKEN_CHATGPT_MAYA}", "label": "ChatGPT (Maya)" },
+    { "kind": "muse", "channel": "sms", "employee_id": "emp_maya", "credential": "${REHEARSAL_NUMBER_MAYA}", "label": "Rehearsal phone (Maya)" },
+    { "kind": "instinct", "channel": "sms", "employee_id": "emp_noah", "credential": "${INSTINCT_NUMBER_NOAH}", "label": "Instinct (Noah)" },
+    { "kind": "claude", "channel": "mcp", "employee_id": "emp_noah", "credential": "${MCP_TOKEN_CLAUDE_NOAH}", "label": "Claude (Noah)" }
   ]
 }

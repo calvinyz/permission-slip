@@ -17,7 +17,7 @@ function ctx(turns: Partial<ConversationTurn>[], extra: Partial<BrainContext> = 
     company: "Northwind Labs",
     employeeName: "Maya Chen",
     employeeId: "emp_maya",
-    agentLabel: "Instinct (Maya)",
+    agentLabel: "Muse (Maya)",
     channel: "sms",
     merchantCategories: cats,
     turns: turns.map((t) => ({ role: "agent", text: "", ts: "2026-10-21T17:00:00Z", ...t })) as ConversationTurn[],

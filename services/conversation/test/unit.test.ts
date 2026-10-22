@@ -61,15 +61,15 @@ describe("enrollment", () => {
     assert.equal(normalizePhone("(555) 000-0001"), "+15550000001");
     assert.equal(normalizePhone("+1 555 000 0001"), "+15550000001");
     assert.equal(normalizePhone("15550000001"), "+15550000001");
-    assert.equal(normalizeEmail("Muse <Muse-Dev@Example.com>"), "muse-dev@example.com");
+    assert.equal(normalizeEmail("Muse <Muse-Maya@Example.com>"), "muse-maya@example.com");
   });
   it("resolves ${ENV} placeholders and finds agents by channel", () => {
     const e = testEnrollment();
-    assert.match(e.findSmsSender("555-000-0001")?.agent_id ?? "", /^instinct:emp_maya-[0-9a-f]{8}$/, "no phone number in agent_id");
-    assert.equal(e.findSmsSender("+15550000002")?.employee.employee_id, "emp_dev");
-    assert.equal(e.findEmailSender("MUSE-DEV@example.com")?.kind, "muse");
-    assert.equal(e.findMcpToken(TOKENS.claudeDev)?.agent_id, "claude:emp_dev");
-    assert.equal(e.findMcpToken(TOKENS.chatgptDev)?.agent_id, "chatgpt:emp_dev");
+    assert.match(e.findSmsSender("555-000-0001")?.agent_id ?? "", /^muse:emp_maya-[0-9a-f]{8}$/, "no phone number in agent_id");
+    assert.equal(e.findSmsSender("+15550000002")?.employee.employee_id, "emp_noah");
+    assert.equal(e.findEmailSender("MUSE-MAYA@example.com")?.kind, "muse");
+    assert.equal(e.findMcpToken(TOKENS.claudeNoah)?.agent_id, "claude:emp_noah");
+    assert.equal(e.findMcpToken(TOKENS.chatgptMaya)?.agent_id, "chatgpt:emp_maya");
     assert.equal(e.findMcpToken("wrong"), undefined);
     assert.equal(e.findMcpToken(undefined), undefined);
     assert.equal(e.employees.get("emp_priya")?.slack_user_id, SLACK.priya);
@@ -81,17 +81,17 @@ describe("enrollment", () => {
     for (const a of testEnrollment().agents) assert.match(a.agent_id, /^(instinct|muse|claude|chatgpt|redteam):[A-Za-z0-9_.+@-]+$/);
   });
   it("skips agents whose credential env var is unset", () => {
-    const e = testEnrollment({ INSTINCT_NUMBER_MAYA: "+15550000001" });
+    const e = testEnrollment({ MUSE_NUMBER_MAYA: "+15550000001" });
     assert.equal(e.agents.length, 1);
-    assert.equal(e.findMcpToken(TOKENS.claudeDev), undefined);
+    assert.equal(e.findMcpToken(TOKENS.claudeNoah), undefined);
   });
   it("rejects short MCP tokens and duplicate senders", () => {
-    assert.throws(() => testEnrollment({ ...ENROLLMENT_ENV, MCP_TOKEN_CLAUDE_DEV: "short" }), /too short/);
-    assert.throws(() => testEnrollment({ ...ENROLLMENT_ENV, MUSE_NUMBER_DEV: "+15550000001" }), /enrolled twice/);
+    assert.throws(() => testEnrollment({ ...ENROLLMENT_ENV, MCP_TOKEN_CLAUDE_NOAH: "short" }), /too short/);
+    assert.throws(() => testEnrollment({ ...ENROLLMENT_ENV, INSTINCT_NUMBER_NOAH: "+15550000001" }), /enrolled twice/);
   });
   it("summary never exposes credentials", () => {
     const s = JSON.stringify(testEnrollment().summary());
-    assert.ok(!s.includes(TOKENS.claudeDev));
+    assert.ok(!s.includes(TOKENS.claudeNoah));
     assert.ok(!s.includes("+15550000001"));
   });
   it("rejects agents that reference unknown employees", () => {

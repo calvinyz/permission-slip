@@ -70,7 +70,7 @@ validate_decision = Draft202012Validator({"$ref": "urn:contract#/components/sche
 | ID | Who | Department | Manager |
 | --- | --- | --- | --- |
 | `emp_maya` | Maya Chen | Engineering | `emp_priya` |
-| `emp_dev` | Dev Patel | Sales | `emp_jordan` |
+| `emp_noah` | Noah Kim | Sales | `emp_jordan` |
 | `emp_priya` | Priya Rao | Engineering (manager) | `emp_sam` |
 | `emp_jordan` | Jordan Lee | Sales (manager) | `emp_sam` |
 | `emp_sam` | Sam Ortiz | Finance | none |

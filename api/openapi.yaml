@@ -279,7 +279,7 @@ components:
       pattern: "^emp_[a-z0-9_]+$"
     AgentId:
       type: string
-      description: "`<agent>:<handle>`, e.g. `instinct:+15551234567` or `claude:tok_dev`"
+      description: "`<agent>:<handle>`, e.g. `muse:emp_maya-1a2b3c4d` (SMS or email: employee plus a hash of the sender) or `claude:emp_noah`"
       pattern: "^(instinct|muse|claude|chatgpt|redteam):.+$"
     Timestamp:
       type: string
@@ -802,7 +802,7 @@ components:
       summary: Scenario 1, Maya's flight to SF
       value:
         request_id: req_s1_flight_sfo
-        agent_id: "instinct:+15551230001"
+        agent_id: "muse:emp_maya-1a2b3c4d"
         channel: sms
         employee_id: emp_maya
         merchant: United Airlines

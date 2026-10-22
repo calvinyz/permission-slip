@@ -12,19 +12,19 @@ import type { SlackChat } from "../src/slack/bot.ts";
 import type { CardDetails } from "../src/contract/schemas.ts";
 
 export const TOKENS = {
-  claudeDev: "tok_claude_dev_0123456789abcdef0123",
-  chatgptDev: "tok_chatgpt_dev_0123456789abcdef012",
+  claudeNoah: "tok_claude_noah_0123456789abcdef0123",
+  chatgptMaya: "tok_chatgpt_maya_0123456789abcdef012",
   claudeMaya: "tok_claude_maya_0123456789abcdef012",
 };
-export const PHONES = { instinctMaya: "+15550000001", museDev: "+15550000002", stranger: "+15559999999" };
+export const PHONES = { museMaya: "+15550000001", instinctNoah: "+15550000002", stranger: "+15559999999" };
 export const SLACK = { priya: "UPRIYA0001", jordan: "UJORDAN001" };
 
 export const ENROLLMENT_ENV = {
-  INSTINCT_NUMBER_MAYA: PHONES.instinctMaya,
-  MUSE_NUMBER_DEV: PHONES.museDev,
-  MUSE_EMAIL_DEV: "muse-dev@example.com",
-  MCP_TOKEN_CLAUDE_DEV: TOKENS.claudeDev,
-  MCP_TOKEN_CHATGPT_DEV: TOKENS.chatgptDev,
+  MUSE_NUMBER_MAYA: PHONES.museMaya,
+  INSTINCT_NUMBER_NOAH: PHONES.instinctNoah,
+  MUSE_EMAIL_MAYA: "muse-maya@example.com",
+  MCP_TOKEN_CLAUDE_NOAH: TOKENS.claudeNoah,
+  MCP_TOKEN_CHATGPT_MAYA: TOKENS.chatgptMaya,
   MCP_TOKEN_CLAUDE_MAYA: TOKENS.claudeMaya,
   SLACK_ID_PRIYA: SLACK.priya,
 };

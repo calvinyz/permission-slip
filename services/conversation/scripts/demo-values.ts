@@ -4,10 +4,10 @@
  * deployments set their own in .env.
  */
 export const DEMO_ENROLLMENT: Record<string, string> = {
-  INSTINCT_NUMBER_MAYA: "+15550000001",
-  MUSE_NUMBER_DEV: "+15550000002",
-  MUSE_EMAIL_DEV: "muse-dev@example.com",
-  MCP_TOKEN_CLAUDE_DEV: "local_demo_claude_dev_0000000000",
-  MCP_TOKEN_CHATGPT_DEV: "local_demo_chatgpt_dev_000000000",
+  MUSE_NUMBER_MAYA: "+15550000001",
+  INSTINCT_NUMBER_NOAH: "+15550000002",
+  MUSE_EMAIL_MAYA: "muse-maya@example.com",
+  MCP_TOKEN_CLAUDE_NOAH: "local_demo_claude_noah_0000000000",
+  MCP_TOKEN_CHATGPT_MAYA: "local_demo_chatgpt_maya_000000000",
   MCP_TOKEN_CLAUDE_MAYA: "local_demo_claude_maya_000000000",
 };

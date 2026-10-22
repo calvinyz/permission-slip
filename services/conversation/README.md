@@ -75,7 +75,7 @@ Then set in `.env`:
 
 1. Buy a number in Twilio. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`.
 2. Phone Numbers → your number → *A message comes in*: Webhook, `POST https://<PUBLIC_BASE_URL>/sms/inbound`.
-3. Enroll the senders in `.env`: `INSTINCT_NUMBER_MAYA`, `MUSE_NUMBER_DEV` (the numbers those agents text **from**, E.164), plus `REHEARSAL_NUMBER_MAYA` (your own phone, to rehearse as Maya).
+3. Enroll the senders in `.env`: `MUSE_NUMBER_MAYA`, `INSTINCT_NUMBER_NOAH` (the numbers those agents text **from**, E.164), plus `REHEARSAL_NUMBER_MAYA` (your own phone, to rehearse as Maya).
 4. Unknown numbers get one polite refusal and nothing else. Every request is checked against `X-Twilio-Signature`; keep `TWILIO_VALIDATE_SIGNATURE=true` anywhere public.
 5. US numbers need A2P 10DLC registration before they can text reliably, and approval can take days. A verified toll-free number is the usual faster path for a demo.
 
@@ -92,21 +92,21 @@ Socket Mode means Slack needs no public URL. Deny asks for confirmation; buttons
 
 ### Claude (MCP)
 
-Generate a token per employee: `openssl rand -hex 24` → `MCP_TOKEN_CLAUDE_DEV`.
+Generate a token per employee: `openssl rand -hex 24` → `MCP_TOKEN_CLAUDE_NOAH`.
 
 Claude → Settings → Connectors → *Add custom connector*:
 - URL: `https://<PUBLIC_BASE_URL>/mcp`
-- Authentication: *No sign in*. Under **Request headers**, add `Authorization: Bearer <MCP_TOKEN_CLAUDE_DEV>`.
+- Authentication: *No sign in*. Under **Request headers**, add `Authorization: Bearer <MCP_TOKEN_CLAUDE_NOAH>`.
 
 Tools: `request_purchase` (flights need cabin class and IATA origin and destination; to accept a counteroffer, pass its fields plus `parent_request_id`), `get_request_status`, and `get_card` (card details and checkout URL for an approved request; only the employee who made the request can read it).
 
 ### ChatGPT (MCP)
 
-ChatGPT connectors can't send custom headers, so the token goes in the URL: `https://<PUBLIC_BASE_URL>/mcp/t/<MCP_TOKEN_CHATGPT_DEV>`, with authentication set to none. This needs Developer Mode (Settings → Apps & Connectors → Advanced). Write-capable connectors need a Business, Enterprise or Edu workspace, so **confirm this on your plan early**. Treat that URL like a password.
+ChatGPT connectors can't send custom headers, so the token goes in the URL: `https://<PUBLIC_BASE_URL>/mcp/t/<MCP_TOKEN_CHATGPT_MAYA>`, with authentication set to none. This needs Developer Mode (Settings → Apps & Connectors → Advanced). Write-capable connectors need a Business, Enterprise or Edu workspace, so **confirm this on your plan early**. Treat that URL like a password.
 
 ### Email (for agents that can't text)
 
-Postmark: set `POSTMARK_SERVER_TOKEN` and `EMAIL_FROM_ADDRESS`, then point the inbound webhook at `https://<PUBLIC_BASE_URL>/email/inbound?token=<EMAIL_WEBHOOK_TOKEN>`. Enroll Muse's sending address as `MUSE_EMAIL_DEV`. Replies thread onto the original message. Inbound mail must pass Postmark's own SPF check, aligned with the From domain (`EMAIL_REQUIRE_AUTH=true`), so nobody can act as Dev by forging Muse's From address. Authentication headers inside the message are ignored, since the sender can write those.
+Postmark: set `POSTMARK_SERVER_TOKEN` and `EMAIL_FROM_ADDRESS`, then point the inbound webhook at `https://<PUBLIC_BASE_URL>/email/inbound?token=<EMAIL_WEBHOOK_TOKEN>`. Enroll Muse's sending address as `MUSE_EMAIL_MAYA`. Replies thread onto the original message. Inbound mail must pass Postmark's own SPF check, aligned with the From domain (`EMAIL_REQUIRE_AUTH=true`), so nobody can act as Maya by forging Muse's From address. Authentication headers inside the message are ignored, since the sender can write those.
 
 ### Claude as the negotiator
 
@@ -149,11 +149,11 @@ All settings come from the environment (`.env` is loaded at startup; see [`.env.
 | `POSTMARK_SERVER_TOKEN`, `EMAIL_FROM_ADDRESS`, `EMAIL_WEBHOOK_TOKEN` | | Email via Postmark (the inbound route is mounted only with a webhook token) |
 | `EMAIL_REQUIRE_AUTH` | `true` | Require Postmark's SPF pass for the sender's domain |
 | `MCP_ENABLED` | `true` | Serve the MCP endpoint |
-| `MCP_TOKEN_CLAUDE_DEV`, `MCP_TOKEN_CHATGPT_DEV`, `MCP_TOKEN_CLAUDE_MAYA` | | Per-employee MCP tokens (24+ characters) |
-| `INSTINCT_NUMBER_MAYA`, `MUSE_NUMBER_DEV`, `MUSE_EMAIL_DEV`, `REHEARSAL_NUMBER_MAYA` | | Enrolled SMS and email senders |
+| `MCP_TOKEN_CLAUDE_NOAH`, `MCP_TOKEN_CHATGPT_MAYA`, `MCP_TOKEN_CLAUDE_MAYA` | | Per-employee MCP tokens (24+ characters) |
+| `MUSE_NUMBER_MAYA`, `INSTINCT_NUMBER_NOAH`, `MUSE_EMAIL_MAYA`, `REHEARSAL_NUMBER_MAYA` | | Enrolled SMS and email senders |
 | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | | Slack over Socket Mode |
 | `SLACK_MANAGER_CHANNEL`, `SLACK_FINANCE_CHANNEL` | | Escalation posts and finance alerts |
-| `SLACK_ID_PRIYA`, `SLACK_ID_JORDAN`, `SLACK_ID_SAM`, `SLACK_ID_MAYA`, `SLACK_ID_DEV` | | Maps seed employees to Slack users |
+| `SLACK_ID_PRIYA`, `SLACK_ID_JORDAN`, `SLACK_ID_SAM`, `SLACK_ID_MAYA`, `SLACK_ID_NOAH` | | Maps seed employees to Slack users |
 | `SLACK_OPEN_APPROVALS` | `false` | Let unmapped Slack users resolve (throwaway test workspaces only) |
 | `ENROLLMENT_FILE` | `data/enrollment.json` | Who is enrolled; credentials are `${ENV}` placeholders |
 | `STATE_FILE` | `data/state.json` | Conversations and Slack posts across restarts (empty disables) |

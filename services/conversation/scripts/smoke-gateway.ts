@@ -156,7 +156,7 @@ if (approved) {
 
 console.log("\n4. POST /v1/requests (scenario 2 first class, expect counter)");
 {
-  const r = await rawCall("POST", "/v1/requests", request({ employee_id: "emp_dev", agent_id: "muse:conversation-smoke", channel: "sms", amount_usd: 1850, description: "PHL to SFO, first class (smoke test)", travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" } }));
+  const r = await rawCall("POST", "/v1/requests", request({ employee_id: "emp_noah", agent_id: "muse:conversation-smoke", channel: "sms", amount_usd: 1850, description: "PHL to SFO, first class (smoke test)", travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" } }));
   checkDecision(r.json, "counter");
   const d = r.json as { status?: string; counteroffer?: unknown };
   if (d.status === "counter" && d.counteroffer) ok(`counter with offer ${JSON.stringify(d.counteroffer).slice(0, 160)}`);

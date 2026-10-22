@@ -1,9 +1,9 @@
 {
   "request_id": "req_s2_flight_economy",
   "parent_request_id": "req_s2_flight_first",
-  "agent_id": "claude:tok_dev",
+  "agent_id": "claude:emp_noah",
   "channel": "mcp",
-  "employee_id": "emp_dev",
+  "employee_id": "emp_noah",
   "merchant": "United Airlines",
   "merchant_category": "airlines",
   "amount_usd": 480.0,

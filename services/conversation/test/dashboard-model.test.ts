@@ -11,19 +11,19 @@ describe("dashboard model", () => {
   const TXN = { txn_id: "txn_1", card_id: "card_1", mandate_id: "mdt_1", request_id: "req_1", merchant: "Demo Air (test merchant)", merchant_category: "airlines", amount_usd: 480, settled_at: "2026-10-21T17:05:00Z", status: "settled" };
   it("folds a full happy path into the four panels", () => {
     const m = applyAll(createModel(), [
-      ev("agent.message.in", { agent_id: "instinct:+1", agent_label: "Instinct (Maya)", channel: "sms", text: "Book United $480" }),
-      ev("agent.request.submitted", { agent_id: "instinct:+1", channel: "sms", employee_name: "Maya Chen", request: { request_id: "req_1", merchant: "United Airlines", amount_usd: 480 } }, "req_1"),
-      ev("request.received", { request: { request_id: "req_1", agent_id: "instinct:+1", channel: "sms", merchant: "United Airlines", amount_usd: 480 } }, "req_1"),
+      ev("agent.message.in", { agent_id: "muse:emp_maya-1a2b3c4d", agent_label: "Muse (Maya)", channel: "sms", text: "Book United $480" }),
+      ev("agent.request.submitted", { agent_id: "muse:emp_maya-1a2b3c4d", channel: "sms", employee_name: "Maya Chen", request: { request_id: "req_1", merchant: "United Airlines", amount_usd: 480 } }, "req_1"),
+      ev("request.received", { request: { request_id: "req_1", agent_id: "muse:emp_maya-1a2b3c4d", channel: "sms", merchant: "United Airlines", amount_usd: 480 } }, "req_1"),
       ev("claims.verified", { verification: [{ check: "calendar.meeting", result: "verified", detail: "Acme customer meeting, 2026-10-27, San Francisco" }], all_verified: true }, "req_1"),
       ev("policy.decided", { status: "approved", reason: "Within policy", policy_trace: [{ rule: "travel.air.class", result: "pass" }], policy_version: "2026-10-20.1", counteroffer: null }, "req_1"),
       ev("mandate.signed", { mandate: { mandate_id: "mdt_1", signature: "abc", key_id: "key_1" } }, "req_1"),
       ev("card.issued", { card: CARD }, "req_1"),
-      ev("agent.message.out", { agent_id: "instinct:+1", channel: "sms", text: "Approved." }, "req_1"),
+      ev("agent.message.out", { agent_id: "muse:emp_maya-1a2b3c4d", channel: "sms", text: "Approved." }, "req_1"),
       ev("txn.settled", { transaction: TXN }, "req_1"),
       ev("txn.reconciled", { transaction: { ...TXN, status: "reconciled", match: [{ field: "amount_usd", expected: "$480.00", actual: "$480.00", result: "match" }], coding: { gl_account: "6110 Travel - Airfare", department: "Engineering", memo: "Acme" } } }, "req_1"),
     ]);
     const r = m.requests.req_1;
-    assert.equal(r.agent_id, "instinct:+1");
+    assert.equal(r.agent_id, "muse:emp_maya-1a2b3c4d");
     assert.equal(r.status, "approved");
     assert.equal(r.checks[0].name, "calendar.meeting");
     assert.equal(r.trace[0].rule, "travel.air.class");
@@ -34,7 +34,7 @@ describe("dashboard model", () => {
     assert.equal(r.txns[0].match[0].result, "match");
     assert.equal(r.txns[0].coding.gl_account, "6110 Travel - Airfare");
     assert.deepEqual(Object.keys(r.steps).sort(), ["card", "decided", "mandate", "received", "reconciled", "settled", "verified"]);
-    assert.equal(m.convos["instinct:+1"].length, 2);
+    assert.equal(m.convos["muse:emp_maya-1a2b3c4d"].length, 2);
     assert.equal(chipStatus(r), "approved");
   });
 

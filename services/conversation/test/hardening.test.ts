@@ -158,25 +158,25 @@ describe("scripted dates", () => {
 
 describe("email, Slack and dashboard edge cases", () => {
   it("email sender must pass Postmark's SPF check", () => {
-    const from = "muse-dev@example.com";
+    const from = "muse-maya@example.com";
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "Pass (sender SPF authorized) identity=mailfrom; client-ip=1.2.3.4; envelope-from=\"bounce@mail.example.com\"; receiver=x" }], from), true);
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "SoftFail" }], from), false);
     assert.equal(senderAuthenticated(undefined, from), false);
   });
   it("authentication headers written by the sender are ignored", () => {
-    const from = "muse-dev@example.com";
+    const from = "muse-maya@example.com";
     // Only Postmark's own verdict (the topmost Received-SPF) counts; anything below it is sender-controlled.
-    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=muse-dev@example.com" }], from), false);
+    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=muse-maya@example.com" }], from), false);
     assert.equal(
       senderAuthenticated([
-        { Name: "Received-SPF", Value: "Fail (sender not authorized) envelope-from=\"muse-dev@example.com\"" },
-        { Name: "Received-SPF", Value: "Pass (forged) envelope-from=\"muse-dev@example.com\"" },
+        { Name: "Received-SPF", Value: "Fail (sender not authorized) envelope-from=\"muse-maya@example.com\"" },
+        { Name: "Received-SPF", Value: "Pass (forged) envelope-from=\"muse-maya@example.com\"" },
       ], from),
       false,
     );
   });
   it("a pass for some other domain doesn't vouch for Muse's From address", () => {
-    const from = "muse-dev@example.com";
+    const from = "muse-maya@example.com";
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "Pass (x) envelope-from=\"a@attacker.test\"" }], from), false);
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "Pass (x)" }], from), false, "no envelope-from to check");
   });
@@ -313,7 +313,7 @@ describe("gateway client", () => {
       return new Response(JSON.stringify({ error: { code: "conflict", message: "different body" } }), { status: 409 });
     }) as typeof fetch;
     const client = new GatewayClient({ baseUrl: "http://gateway.test", token: "t", fetchImpl });
-    const request = { request_id: "req_x", agent_id: "claude:emp_dev", channel: "mcp", employee_id: "emp_dev", merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", justification: "Acme customer meeting", travel: { cabin_class: "economy", origin: "PHL", destination: "SFO" } } as const;
+    const request = { request_id: "req_x", agent_id: "claude:emp_noah", channel: "mcp", employee_id: "emp_noah", merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", justification: "Acme customer meeting", travel: { cabin_class: "economy", origin: "PHL", destination: "SFO" } } as const;
     await assert.rejects(client.submitRequest(request), (err: unknown) => err instanceof GatewayApiError && err.status === 409);
     assert.deepEqual(calls, ["POST /v1/requests"], "no follow-up GET of the other request's decision");
   });

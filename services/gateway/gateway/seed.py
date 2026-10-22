@@ -7,7 +7,7 @@ POLICY_VERSION = "2026-10-20.1"
 
 EMPLOYEES = {
     "emp_maya": {"name": "Maya Chen", "department": "Engineering", "manager_id": "emp_priya"},
-    "emp_dev": {"name": "Dev Patel", "department": "Sales", "manager_id": "emp_jordan"},
+    "emp_noah": {"name": "Noah Kim", "department": "Sales", "manager_id": "emp_jordan"},
     "emp_priya": {"name": "Priya Rao", "department": "Engineering", "manager_id": "emp_sam"},
     "emp_jordan": {"name": "Jordan Lee", "department": "Sales", "manager_id": "emp_sam"},
     "emp_sam": {"name": "Sam Ortiz", "department": "Finance", "manager_id": None},
@@ -18,7 +18,7 @@ CALENDAR = {
         {"title": "Acme customer meeting", "date": "2026-10-27", "city": "San Francisco"},
         {"title": "AI Engineer Summit", "date": "2026-11-03", "city": "San Francisco"},
     ],
-    "emp_dev": [
+    "emp_noah": [
         {"title": "Acme customer meeting", "date": "2026-10-27", "city": "San Francisco"},
     ],
 }

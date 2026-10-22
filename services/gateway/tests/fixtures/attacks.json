@@ -2,7 +2,7 @@
   "base": {
     "agent_id": "redteam:scripted",
     "channel": "mcp",
-    "employee_id": "emp_dev",
+    "employee_id": "emp_noah",
     "merchant": "United Airlines",
     "merchant_category": "airlines",
     "amount_usd": 480.0,

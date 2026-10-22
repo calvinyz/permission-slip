@@ -9,8 +9,8 @@
  *   npm run scenarios -- --service https://your-tunnel.example
  *
  * Reads .env: GATEWAY_URL and GATEWAY_API_TOKEN (to resolve the escalation and charge the demo
- * merchant directly), MCP_TOKEN_CLAUDE_DEV (scenario 2 over MCP), INSTINCT_NUMBER_MAYA and
- * MUSE_NUMBER_DEV (enrolled senders for the SMS scenarios).
+ * merchant directly), MCP_TOKEN_CLAUDE_NOAH (scenario 2 over MCP), MUSE_NUMBER_MAYA and
+ * INSTINCT_NUMBER_NOAH (enrolled senders for the SMS scenarios).
  */
 import { parseArgs } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -30,8 +30,8 @@ const SERVICE_URL = (values.service ?? process.env.CONVERSATION_URL ?? `http://l
 const GATEWAY_URL = (process.env.GATEWAY_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 // "dev-token" is the gateway's own default (services/gateway, GATEWAY_API_TOKEN unset), as used by npm run demo:local.
 const gateway = new GatewayClient({ baseUrl: GATEWAY_URL, token: process.env.GATEWAY_API_TOKEN || "dev-token" });
-const MAYA = normalizePhone(process.env.INSTINCT_NUMBER_MAYA ?? "+15550000001");
-const DEV = normalizePhone(process.env.MUSE_NUMBER_DEV ?? "+15550000002");
+const MAYA = normalizePhone(process.env.MUSE_NUMBER_MAYA ?? "+15550000001");
+const NOAH = normalizePhone(process.env.INSTINCT_NUMBER_NOAH ?? "+15550000002");
 const only = values.only ? new Set(values.only.split(",").map((s) => s.trim())) : undefined;
 const adminHeaders: Record<string, string> = process.env.DASHBOARD_TOKEN ? { "X-Dashboard-Token": process.env.DASHBOARD_TOKEN } : {};
 
@@ -70,8 +70,8 @@ async function smsUntilDecision(from: string, body: string, timeoutMs = 60_000):
 }
 
 async function mcp() {
-  const token = process.env.MCP_TOKEN_CLAUDE_DEV;
-  if (!token) throw new Error("MCP_TOKEN_CLAUDE_DEV is not set");
+  const token = process.env.MCP_TOKEN_CLAUDE_NOAH;
+  if (!token) throw new Error("MCP_TOKEN_CLAUDE_NOAH is not set");
   const client = new Client({ name: "scenario-runner", version: "1.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${SERVICE_URL}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
   return client;
@@ -175,7 +175,7 @@ const scenarios: { id: string; name: string; run: () => Promise<string> }[] = [
       ];
       const results: string[] = [];
       for (const a of attempts) {
-        const rec = await smsUntilDecision(DEV, a);
+        const rec = await smsUntilDecision(NOAH, a);
         expect(rec.decision?.status === "denied", `expected denied, got ${rec.decision?.status}: "${a}"`);
         expect(!rec.decision?.card, `card issued for injection: "${a}"`);
         results.push(rec.decision!.status);

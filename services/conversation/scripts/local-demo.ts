@@ -84,8 +84,8 @@ console.log(`
 
   Dashboard     ${base}/dashboard/
   Issuer        ${GATEWAY_URL}/issuer       Demo merchant  ${GATEWAY_URL}/merchant
-  MCP (Claude)  ${base}/mcp        header  Authorization: Bearer ${process.env.MCP_TOKEN_CLAUDE_DEV}
-  MCP (ChatGPT) ${base}/mcp/t/${process.env.MCP_TOKEN_CHATGPT_DEV}
+  MCP (Claude)  ${base}/mcp        header  Authorization: Bearer ${process.env.MCP_TOKEN_CLAUDE_NOAH}
+  MCP (ChatGPT) ${base}/mcp/t/${process.env.MCP_TOKEN_CHATGPT_MAYA}
 
   In another terminal:
     npm run scenarios                         # runs all five scenarios and prints pass/fail
