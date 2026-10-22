@@ -22,7 +22,7 @@ import { createLogger, type Logger } from "./logger.ts";
 import { OutboundRouter, PostmarkEmailSender, type EmailSender, type SmsSender, TwilioSmsSender } from "./channels/outbound.ts";
 import { smsRouter } from "./channels/sms.ts";
 import { emailRouter } from "./channels/email.ts";
-import { dashboardRouter } from "./dashboard/routes.ts";
+import { dashboardRouter, tokenMatches } from "./dashboard/routes.ts";
 import { Followups } from "./followups.ts";
 import { mcpRouter } from "./mcp/server.ts";
 import type { Brain } from "./negotiator/brain.ts";
@@ -30,7 +30,6 @@ import { LlmBrain } from "./negotiator/llm-brain.ts";
 import { Negotiator } from "./negotiator/negotiator.ts";
 import { ScriptedBrain } from "./negotiator/scripted-brain.ts";
 import { FallbackBrain } from "./negotiator/fallback-brain.ts";
-import { timingSafeEqual } from "node:crypto";
 import { type GatewayApi, GatewayClient } from "./gateway/client.ts";
 import { GatewayEventStream } from "./gateway/events.ts";
 import { RequestService } from "./requests.ts";
@@ -143,15 +142,12 @@ export function createConversationService(config: Config, overrides: Conversatio
   if (config.EMAIL_WEBHOOK_TOKEN) app.use("/email", emailRouter({ enrollment, negotiator, outbound, state, log, webhookToken: config.EMAIL_WEBHOOK_TOKEN, requireAuth: config.EMAIL_REQUIRE_AUTH }));
   if (config.MCP_ENABLED) app.use("/mcp", mcpRouter({ enrollment, requests, state, bus, log, merchantCategories: config.merchantCategories, render, serverVersion: VERSION }));
   app.use("/dashboard", dashboardRouter({ bus, token: config.DASHBOARD_TOKEN, info }));
-  // Admin endpoints for scripts and between demo takes: localhost only, or ?token=<DASHBOARD_TOKEN>.
+  // Admin endpoints for scripts and between demo takes: localhost only, or the X-Dashboard-Token header.
   const adminOnly = (req: Request, res: Response): boolean => {
     // A tunnel (Tailscale Funnel, ngrok) connects from localhost, so a forwarded request is never "local".
     const forwarded = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "tailscale-user-login"].some((h) => req.headers[h] !== undefined);
     const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "") && !forwarded;
-    const given = Buffer.from(typeof req.query.token === "string" ? req.query.token : "");
-    const expected = Buffer.from(config.DASHBOARD_TOKEN ?? "");
-    const tokenOk = expected.length > 0 && given.length === expected.length && timingSafeEqual(given, expected);
-    if (local || tokenOk) return true;
+    if (local || tokenMatches(req.header("x-dashboard-token"), config.DASHBOARD_TOKEN)) return true;
     res.status(403).json({ error: "forbidden" });
     return false;
   };
@@ -217,6 +213,7 @@ async function main() {
   const config = loadConfig();
   const log = createLogger({ level: config.LOG_LEVEL, file: config.LOG_FILE });
   const service = createConversationService(config, { log });
+  let stopSlack: (() => Promise<unknown>) | undefined;
 
   if (config.slackEnabled) {
     if (!config.SLACK_MANAGER_CHANNEL) {
@@ -228,9 +225,15 @@ async function main() {
       registerSlackHandlers(slackApp, bot, log);
       const noSlack = ["emp_priya", "emp_jordan"].filter((id) => !service.enrollment.employees.get(id)?.slack_user_id);
       if (noSlack.length) log.warn(config.SLACK_OPEN_APPROVALS ? "slack: these approvers have no Slack id; with SLACK_OPEN_APPROVALS=true anyone in the channel can resolve for them" : "slack: these approvers have no Slack id, so their escalations can't be resolved from Slack until you set SLACK_ID_*", { approvers: noSlack });
-      service.slackBot = bot;
-      await slackApp.start();
-      log.info("slack: connected (Socket Mode)");
+      try {
+        await slackApp.start();
+        service.slackBot = bot;
+        stopSlack = () => slackApp.stop();
+        log.info("slack: connected (Socket Mode)");
+      } catch (err) {
+        // Slack is optional: a bad or revoked token must not take SMS, MCP or the dashboard down.
+        log.error("slack: failed to connect; continuing without Slack", { error: (err as Error).message });
+      }
     }
   } else {
     log.info("slack: disabled (set SLACK_BOT_TOKEN, SLACK_APP_TOKEN and SLACK_MANAGER_CHANNEL)");
@@ -238,9 +241,9 @@ async function main() {
 
   await service.start();
   const base = config.PUBLIC_BASE_URL ?? `http://localhost:${config.PORT}`;
-  log.info("agent side listening", {
+  log.info("conversation service listening", {
     port: config.PORT,
-    dashboard: `${base}/dashboard/${config.DASHBOARD_TOKEN ? "?token=…" : ""}`,
+    dashboard: `${base}/dashboard/`,
     sms_webhook: `${base}/sms/inbound`,
     mcp: `${base}/mcp`,
     gateway: config.GATEWAY_URL,
@@ -248,11 +251,11 @@ async function main() {
     sms: config.twilioEnabled ? "twilio" : "dry-run (no TWILIO_* set)",
   });
   if (!config.GATEWAY_API_TOKEN) log.warn("GATEWAY_API_TOKEN is empty; the gateway will reject every request (locally its default is dev-token)");
-  if (config.PUBLIC_BASE_URL && !config.DASHBOARD_TOKEN) log.warn("PUBLIC_BASE_URL is set but DASHBOARD_TOKEN is empty: anyone with the URL can watch the dashboard. Set DASHBOARD_TOKEN.");
   if (!config.TWILIO_VALIDATE_SIGNATURE) log.warn("TWILIO_VALIDATE_SIGNATURE is off: anyone who knows the URL can impersonate an enrolled agent over SMS. Only use this locally.");
 
   const shutdown = async (signal: string) => {
     log.info("shutting down", { signal });
+    await stopSlack?.().catch(() => undefined);
     await service.stop();
     process.exit(0);
   };

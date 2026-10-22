@@ -1,4 +1,4 @@
-/** Regression tests for the independent review's findings. */
+/** Hardening: event stream resilience, negotiator safety, email and Slack edge cases, dashboard secrecy. */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { EventBus } from "../src/bus.ts";
@@ -8,7 +8,9 @@ import { ScriptedBrain } from "../src/negotiator/scripted-brain.ts";
 import { FallbackBrain } from "../src/negotiator/fallback-brain.ts";
 import { validateSubmitInput, type BrainContext } from "../src/negotiator/brain.ts";
 import { senderAuthenticated } from "../src/channels/email.ts";
-import { stripSecrets } from "../src/dashboard/routes.ts";
+import { dashboardRouter, stripSecrets } from "../src/dashboard/routes.ts";
+import express from "express";
+import supertest from "supertest";
 import { clip } from "../src/slack/blocks.ts";
 import { SlackBot } from "../src/slack/bot.ts";
 import { StateStore } from "../src/state.ts";
@@ -16,7 +18,7 @@ import { loadConfig } from "../src/config.ts";
 import { silentLogger } from "../src/logger.ts";
 import { MERCHANT_CATEGORIES } from "../src/contract/schemas.ts";
 import { FakeSlack, FIXED_NOW, SLACK, testEnrollment, until } from "./helpers.ts";
-import type { GatewayApi } from "../src/gateway/client.ts";
+import { GatewayApiError, GatewayClient, type GatewayApi } from "../src/gateway/client.ts";
 
 const cats = [...MERCHANT_CATEGORIES];
 const ctx = (text: string): BrainContext => ({
@@ -42,7 +44,7 @@ function sseResponse(frames: string[], keepOpen = false): Response {
 }
 const frame = (id: number, type: string, ts: string, request_id = "req_1") => `id: ${id}\nevent: ${type}\ndata: ${JSON.stringify({ type, request_id, ts, data: { n: id } })}\n\n`;
 
-describe("event stream (review #1, #2, #4)", () => {
+describe("event stream resilience", () => {
   it("a restarted gateway reusing SSE ids still gets its new events through", async () => {
     const bus = new EventBus();
     const now = Date.parse("2026-10-21T17:00:00Z");
@@ -120,7 +122,7 @@ describe("event stream (review #1, #2, #4)", () => {
   });
 });
 
-describe("negotiator safety (review #6, #7)", () => {
+describe("negotiator safety", () => {
   it("replaces model replies that read like decisions or card details", () => {
     for (const t of ["Approved! Card ending 4242.", "Your request is denied.", "Use card_abcd1234 to pay", "The mandate is signed"]) assert.notEqual(guardReply(t), t, t);
     for (const t of ["You're approved, go ahead.", "I've approved it.", "Pre-approved: book it", "Card number 4242 4242 4242 4242"]) assert.notEqual(guardReply(t), t, t);
@@ -135,7 +137,7 @@ describe("negotiator safety (review #6, #7)", () => {
   });
 });
 
-describe("scripted dates (review #9)", () => {
+describe("scripted dates", () => {
   const brain = new ScriptedBrain();
   const date = async (t: string) => { const a = await brain.decide(ctx(t)); return a.type === "submit" ? a.input.claims.date : a.type; };
   it("doesn't read hotel names as months", async () => {
@@ -154,21 +156,29 @@ describe("scripted dates (review #9)", () => {
   });
 });
 
-describe("hardening (review #8, #10, #12, #13)", () => {
-  it("email sender must pass SPF or DKIM", () => {
+describe("email, Slack and dashboard edge cases", () => {
+  it("email sender must pass Postmark's SPF check", () => {
     const from = "muse-dev@example.com";
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "Pass (sender SPF authorized) identity=mailfrom; client-ip=1.2.3.4; envelope-from=\"bounce@mail.example.com\"; receiver=x" }], from), true);
-    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx.postmarkapp.com; dkim=pass header.d=example.com; spf=none" }], from), true);
-    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx; spf=pass smtp.mailfrom=muse-dev@example.com" }], from), true);
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "SoftFail" }], from), false);
     assert.equal(senderAuthenticated(undefined, from), false);
+  });
+  it("authentication headers written by the sender are ignored", () => {
+    const from = "muse-dev@example.com";
+    // Only Postmark's own verdict (the topmost Received-SPF) counts; anything below it is sender-controlled.
+    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=muse-dev@example.com" }], from), false);
+    assert.equal(
+      senderAuthenticated([
+        { Name: "Received-SPF", Value: "Fail (sender not authorized) envelope-from=\"muse-dev@example.com\"" },
+        { Name: "Received-SPF", Value: "Pass (forged) envelope-from=\"muse-dev@example.com\"" },
+      ], from),
+      false,
+    );
   });
   it("a pass for some other domain doesn't vouch for Muse's From address", () => {
     const from = "muse-dev@example.com";
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "Pass (x) envelope-from=\"a@attacker.test\"" }], from), false);
     assert.equal(senderAuthenticated([{ Name: "Received-SPF", Value: "Pass (x)" }], from), false, "no envelope-from to check");
-    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx; dkim=pass header.d=attacker.test; spf=pass smtp.mailfrom=a@attacker.test" }], from), false);
-    assert.equal(senderAuthenticated([{ Name: "Authentication-Results", Value: "mx; dkim=pass header.d=notexample.com" }], from), false);
   });
   it("Slack field text is clipped under Slack's limit", () => {
     assert.equal(clip("x".repeat(5000), 1900).length, 1900);
@@ -195,7 +205,7 @@ describe("hardening (review #8, #10, #12, #13)", () => {
   });
 });
 
-describe("second review", () => {
+describe("Slack approvals, restarts and masking", () => {
   const escalatedTo = (approver: string, request_id = "req_j") => ({
     request_id, status: "escalated", reason: "Over budget", policy_trace: [], verification: [], policy_version: "1", decided_at: "2026-10-21T17:00:00Z",
     counteroffer: null, mandate_id: null, card: null,
@@ -269,5 +279,42 @@ describe("second review", () => {
   it("dashboard stream masks card numbers inside any text field", () => {
     const out = JSON.stringify(stripSecrets({ text: "Paying with 4242 4242 4242 1234, CVC 123", nested: { note: "4242424242421234" } }));
     assert.ok(!out.includes("4242 4242 4242 1234") && !out.includes("4242424242421234") && !out.includes("CVC 123"), out);
+  });
+});
+
+describe("dashboard sign-in", () => {
+  const app = express().use("/dashboard", dashboardRouter({ bus: new EventBus(), token: "s3cret-dashboard-token", info: () => ({ ok: true }) }));
+  const agent = () => supertest(app);
+
+  it("serves the page but guards data, and never accepts the token in the URL", async () => {
+    assert.equal((await agent().get("/dashboard/")).status, 200);
+    assert.equal((await agent().get("/dashboard/config")).status, 401);
+    assert.equal((await agent().get("/dashboard/config?token=s3cret-dashboard-token")).status, 401);
+    assert.equal((await agent().get("/dashboard/config").set("X-Dashboard-Token", "s3cret-dashboard-token")).status, 200);
+  });
+
+  it("exchanges the token for an HttpOnly session cookie", async () => {
+    assert.equal((await agent().post("/dashboard/session").send({ token: "wrong" })).status, 401);
+    const res = await agent().post("/dashboard/session").send({ token: "s3cret-dashboard-token" });
+    assert.equal(res.status, 204);
+    const cookie = String(res.headers["set-cookie"]);
+    assert.match(cookie, /HttpOnly/);
+    assert.match(cookie, /SameSite=Strict/);
+    assert.ok(!cookie.includes("s3cret-dashboard-token"), "the cookie is a session id, not the token");
+    assert.equal((await agent().get("/dashboard/config").set("Cookie", cookie.split(";")[0]!)).status, 200);
+  });
+});
+
+describe("gateway client", () => {
+  it("never adopts another request's decision on a request_id conflict", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push(`${init.method} ${new URL(url).pathname}`);
+      return new Response(JSON.stringify({ error: { code: "conflict", message: "different body" } }), { status: 409 });
+    }) as typeof fetch;
+    const client = new GatewayClient({ baseUrl: "http://gateway.test", token: "t", fetchImpl });
+    const request = { request_id: "req_x", agent_id: "claude:emp_dev", channel: "mcp", employee_id: "emp_dev", merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", justification: "Acme customer meeting", travel: { cabin_class: "economy", origin: "PHL", destination: "SFO" } } as const;
+    await assert.rejects(client.submitRequest(request), (err: unknown) => err instanceof GatewayApiError && err.status === 409);
+    assert.deepEqual(calls, ["POST /v1/requests"], "no follow-up GET of the other request's decision");
   });
 });

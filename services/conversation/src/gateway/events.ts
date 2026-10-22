@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { createParser, type EventSourceMessage } from "eventsource-parser";
 import type { GatewayEvent } from "../contract/schemas.ts";
-import { GATEWAY_EVENT_TYPES } from "../contract/schemas.ts";
+import { type Contract, contract as sharedContract, GATEWAY_EVENT_TYPES } from "../contract/schemas.ts";
 import type { EventBus } from "../bus.ts";
 import type { Logger } from "../logger.ts";
 import { silentLogger } from "../logger.ts";
@@ -64,6 +64,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 export interface GatewayEventStreamOptions {
+  contract?: Contract;
   url: string;
   headers: Record<string, string>;
   bus: EventBus;
@@ -100,10 +101,13 @@ export class GatewayEventStream {
   connected = false;
   private readonly log: Logger;
   private readonly warnedTypes = new Set<string>();
+  private readonly warnedDrift = new Set<string>();
+  private readonly contract: Contract;
   private warnedSkew = false;
 
   constructor(private readonly opts: GatewayEventStreamOptions) {
     this.log = opts.log ?? silentLogger;
+    this.contract = opts.contract ?? sharedContract();
     this.startedAt = (opts.now ?? Date.now)();
   }
 
@@ -142,6 +146,12 @@ export class GatewayEventStream {
       rawTs = ["ts", "timestamp", "created_at", "time"].some((k) => typeof body[k] === "string");
       // The gateway's event_id (evt_…) is globally unique and stable across replays: the best key.
       if (typeof body.event_id === "string" && body.event_id) eventId = body.event_id;
+      // Lenient, like responses: log contract drift once per event type and keep going.
+      const problems = this.contract.errors("Event", body);
+      if (problems.length && !this.warnedDrift.has(event.type)) {
+        this.warnedDrift.add(event.type);
+        this.log.warn("gateway events: event doesn't match the contract", { type: event.type, problems: problems.slice(0, 5) });
+      }
     } catch {
       /* not JSON */
     }

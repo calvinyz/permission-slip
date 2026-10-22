@@ -14,7 +14,7 @@ import type { EventBus } from "../bus.ts";
 import type { Card, Escalation, GatewayEvent, PurchaseRequest, Transaction } from "../contract/schemas.ts";
 import type { Enrollment } from "../enrollment.ts";
 import type { Logger } from "../logger.ts";
-import { GatewayApiError, type GatewayApi } from "../gateway/client.ts";
+import { GatewayApiError, gatewayFailure, type GatewayApi } from "../gateway/client.ts";
 import type { StateStore } from "../state.ts";
 import {
   type EscalationDetails,
@@ -226,6 +226,20 @@ export class SlackBot {
         return "This request was already resolved.";
       }
       this.o.log.error("slack: resolve failed", { request_id: args.requestId, error: (err as Error).message });
+      const failure = gatewayFailure(err);
+      if (failure === "not_found") return "The gateway no longer has this escalation. Nothing changed.";
+      if (failure === "unavailable") {
+        // A timeout may still have been applied on the gateway, so report what actually happened.
+        try {
+          const d = await this.o.gateway.getRequest(args.requestId);
+          if (d.status !== "escalated") {
+            if (posted) await this.updatePost(posted, d.status, by);
+            return undefined;
+          }
+        } catch {
+          /* still unreachable */
+        }
+      }
       return "Couldn't reach the approval system. Nothing changed; try again in a moment.";
     }
     if (posted) await this.updatePost(posted, args.decision === "approve" ? "approved" : "denied", by);
@@ -256,6 +270,7 @@ export class SlackBot {
     // Give a txn.mismatch that arrives just after the suspension a moment to land.
     if (!this.mismatches.has(key)) await new Promise((r) => setTimeout(r, 400));
     const mismatch = this.mismatches.get(key) ?? {};
+    this.mismatches.delete(key);
     const rec = e.request_id ? this.o.state.getRequest(e.request_id) : undefined;
     const employee = rec ? this.o.enrollment.employees.get(rec.employee_id) : undefined;
     const alert: SuspensionAlert = {

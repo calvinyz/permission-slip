@@ -86,6 +86,8 @@ export interface BrainContext {
   timeZone: string;
   /** Returns an error message if the submit input is invalid, otherwise undefined. */
   validateSubmit(input: unknown): string | undefined;
+  /** Aborted when the caller stops waiting, so in-flight model calls are cancelled rather than left running. */
+  signal?: AbortSignal;
 }
 
 export interface Brain {

@@ -42,32 +42,22 @@ export function stripQuotedReply(text: string): string {
 }
 
 /**
- * True if Postmark's inbound headers show SPF or DKIM passed for the sender. Without this, anyone
- * could email the inbound address with Muse's From header and act as Dev.
+ * True if Postmark's SPF verdict passed for the sender's domain. Without this, anyone could email
+ * the inbound address with an enrolled agent's From header and act for that employee.
+ *
+ * Only the topmost Received-SPF header counts: Postmark prepends its own above the message's
+ * headers, while anything further down (including Authentication-Results) may have been written
+ * by the sender.
  */
 export function senderAuthenticated(headers: { Name: string; Value: string }[] | undefined, fromEmail: string | undefined): boolean {
   const fromDomain = domainOf(fromEmail);
   if (!fromDomain) return false;
-  // A pass only counts when it vouches for the From domain itself (DMARC-style relaxed
-  // alignment). Otherwise anyone with their own SPF/DKIM-clean domain could forge Muse's From.
-  const aligned = (d: string | undefined) => Boolean(d) && (d === fromDomain || d!.endsWith(`.${fromDomain}`) || fromDomain.endsWith(`.${d}`));
-  const all = headers ?? [];
-  for (const h of all) {
-    const name = h.Name.toLowerCase();
-    if (name === "received-spf" && /^\s*pass\b/i.test(h.Value)) {
-      const envelope = h.Value.match(/envelope-from=["<]?([^"\s;>]+)/i)?.[1];
-      if (aligned(domainOf(envelope))) return true;
-    }
-    if (name === "authentication-results") {
-      for (const clause of h.Value.split(";")) {
-        const dkim = /\bdkim=pass\b/i.test(clause) ? clause.match(/header\.d=([^\s;]+)/i)?.[1] : undefined;
-        if (aligned(dkim?.toLowerCase())) return true;
-        const spf = /\bspf=pass\b/i.test(clause) ? clause.match(/smtp\.mailfrom=([^\s;]+)/i)?.[1] : undefined;
-        if (aligned(domainOf(spf))) return true;
-      }
-    }
-  }
-  return false;
+  const verdict = (headers ?? []).find((h) => h.Name.toLowerCase() === "received-spf");
+  if (!verdict || !/^\s*pass\b/i.test(verdict.Value)) return false;
+  // The pass must vouch for the From domain itself (DMARC-style relaxed alignment); otherwise
+  // anyone with their own SPF-clean domain could forge the From header.
+  const envelope = domainOf(verdict.Value.match(/envelope-from=["<]?([^"\s;>]+)/i)?.[1]);
+  return Boolean(envelope) && (envelope === fromDomain || envelope!.endsWith(`.${fromDomain}`) || fromDomain.endsWith(`.${envelope}`));
 }
 
 function domainOf(address: string | undefined): string | undefined {

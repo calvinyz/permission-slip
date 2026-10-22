@@ -9,11 +9,11 @@ import type { Decision } from "../contract/schemas.ts";
 import type { EventBus } from "../bus.ts";
 import type { EnrolledAgent } from "../enrollment.ts";
 import type { Logger } from "../logger.ts";
-import { GatewayApiError } from "../gateway/client.ts";
+import { gatewayFailure, type GatewayApiError } from "../gateway/client.ts";
 import { NotYourRequestError, type RequestService } from "../requests.ts";
 import type { StateStore } from "../state.ts";
 import { type Brain, type BrainContext, type RequestSummary, validateSubmitInput } from "./brain.ts";
-import { maskCardNumbers, renderDecision } from "./render.ts";
+import { maskCardNumbers, renderDecision, renderGatewayFailure } from "./render.ts";
 import { ContractError, type TranscriptMessage } from "../contract/schemas.ts";
 import type { ConversationTurn } from "../state.ts";
 
@@ -214,9 +214,7 @@ export class Negotiator {
           ? "I couldn't put that into a valid request. Please resend the merchant, total, what it's for, and the meeting date."
           : err instanceof NotYourRequestError
           ? "I can't find that request for you. Check the request ID."
-          : err instanceof GatewayApiError && err.status !== undefined && err.status < 500
-            ? "The approval system rejected that request's format. I've logged it; please try rephrasing."
-            : "I couldn't reach the approval system just now. Nothing was approved or charged. Please try again in a minute.";
+          : renderGatewayFailure(gatewayFailure(err));
       log.error("negotiator: request failed", { agent_id: agent.agent_id, error: (err as Error).message, status: (err as GatewayApiError).status, body: (err as GatewayApiError).body });
       bus.emitAgent("agent.error", { agent_id: agent.agent_id, stage: "gateway_api", error: (err as Error).message });
       return { replies: [say(message)], action: "error" };

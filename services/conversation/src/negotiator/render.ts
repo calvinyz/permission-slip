@@ -9,6 +9,7 @@
  * conversation history, transcripts sent to the gateway, logs and the dashboard.
  */
 import type { Card, CardDetails, Counteroffer, Decision, Transaction } from "../contract/schemas.ts";
+import type { GatewayFailure } from "../gateway/client.ts";
 
 export interface RenderOptions {
   demoMerchantUrl?: string;
@@ -115,4 +116,20 @@ export function renderSuspension(card: Partial<Card> | undefined, reason: string
   // With the charge in hand, "charged $620 against an approved $480" says it all; otherwise use the gateway's reason.
   const why = reason && !charged ? ` (${humanizeFields(reason).replace(/\.$/, "")})` : "";
   return tidy(`Heads up: the card${last4} was suspended${why}.${charged} Finance has been alerted.`);
+}
+
+/** What to tell a personal agent when a gateway call fails. Never implies anything was approved. */
+export function renderGatewayFailure(failure: GatewayFailure): string {
+  switch (failure) {
+    case "rejected":
+      return "The approval system rejected that request's format. Nothing was approved or charged; please resend the merchant, total and what it's for.";
+    case "not_found":
+      return "I can't find that request. Check the request ID.";
+    case "conflict":
+      return "That request collided with an earlier one, so nothing was approved or charged. Please send it again.";
+    case "unauthorized":
+    case "forbidden":
+    case "unavailable":
+      return "I couldn't reach the approval system just now. Nothing was approved or charged. Please try again in a minute.";
+  }
 }

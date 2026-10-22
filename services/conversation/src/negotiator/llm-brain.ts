@@ -138,7 +138,7 @@ export class LlmBrain implements Brain {
   private readonly log: Logger;
 
   constructor(private readonly opts: LlmBrainOptions) {
-    this.client = opts.client ?? new Anthropic({ apiKey: opts.apiKey, maxRetries: 2, timeout: opts.timeoutMs ?? 30_000 });
+    this.client = opts.client ?? new Anthropic({ apiKey: opts.apiKey, maxRetries: 1, timeout: opts.timeoutMs ?? 20_000 });
     this.log = opts.log ?? silentLogger;
   }
 
@@ -157,7 +157,7 @@ export class LlmBrain implements Brain {
         tools,
         tool_choice: { type: "auto", disable_parallel_tool_use: true },
         messages,
-      });
+      }, { signal: ctx.signal });
       this.log.debug("llm: response", { ms: Date.now() - started, stop_reason: resp.stop_reason, usage: resp.usage });
 
       const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
@@ -188,6 +188,7 @@ export class LlmBrain implements Brain {
       messages.push({ role: "assistant", content: resp.content });
       messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, is_error: true, content: "Unknown tool or invalid input." }] });
     }
-    return { type: "reply", text: "Sorry, I couldn't put that request together. Please resend the merchant, total amount, what it's for, and the meeting date." };
+    // Let the caller fall back to the deterministic parser, which asks for exactly what's missing.
+    throw new Error("model did not produce a valid request after 3 attempts");
   }
 }

@@ -33,14 +33,14 @@ const gateway = new GatewayClient({ baseUrl: GATEWAY_URL, token: process.env.GAT
 const MAYA = normalizePhone(process.env.INSTINCT_NUMBER_MAYA ?? "+15550000001");
 const DEV = normalizePhone(process.env.MUSE_NUMBER_DEV ?? "+15550000002");
 const only = values.only ? new Set(values.only.split(",").map((s) => s.trim())) : undefined;
-const adminQs = process.env.DASHBOARD_TOKEN ? `?token=${encodeURIComponent(process.env.DASHBOARD_TOKEN)}` : "";
+const adminHeaders: Record<string, string> = process.env.DASHBOARD_TOKEN ? { "X-Dashboard-Token": process.env.DASHBOARD_TOKEN } : {};
 
 type Rec = { request: { request_id: string; amount_usd: number; merchant: string }; decision?: Decision; agent_id: string; created_at: string };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function requests(agentId: string): Promise<Rec[]> {
-  const res = await fetch(`${SERVICE_URL}/admin/requests${adminQs}${adminQs ? "&" : "?"}agent_id=${encodeURIComponent(agentId)}`);
+  const res = await fetch(`${SERVICE_URL}/admin/requests?agent_id=${encodeURIComponent(agentId)}`, { headers: adminHeaders });
   if (!res.ok) throw new Error(`GET /admin/requests failed: HTTP ${res.status}`);
   return (await res.json()) as Rec[];
 }
@@ -72,7 +72,7 @@ async function smsUntilDecision(from: string, body: string, timeoutMs = 60_000):
 const agentIds = new Map<string, string>();
 async function agentIdFor(phone: string): Promise<string | undefined> {
   if (agentIds.has(phone)) return agentIds.get(phone);
-  const info = (await (await fetch(`${SERVICE_URL}/admin/info${adminQs}`)).json()) as { agent_ids: { agent_id: string; channel: string }[] };
+  const info = (await (await fetch(`${SERVICE_URL}/admin/info`, { headers: adminHeaders })).json()) as { agent_ids: { agent_id: string; channel: string }[] };
   const match = info.agent_ids.find((a) => a.channel === "sms" && a.agent_id.endsWith(`:${phone}`));
   if (!match) throw new Error(`${phone} isn't enrolled on the running gateway`);
   const id = match.agent_id;
@@ -198,7 +198,7 @@ const scenarios: { id: string; name: string; run: () => Promise<string> }[] = [
 
 async function recentEvents(): Promise<{ type: string; request_id?: string; data?: Record<string, unknown> }[]> {
   const ctrl = new AbortController();
-  const res = await fetch(`${SERVICE_URL}/dashboard/stream${adminQs}`, { signal: ctrl.signal });
+  const res = await fetch(`${SERVICE_URL}/dashboard/stream`, { headers: adminHeaders, signal: ctrl.signal });
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buf = "";

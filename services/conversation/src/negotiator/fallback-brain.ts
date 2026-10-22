@@ -17,12 +17,16 @@ export class FallbackBrain implements Brain {
   }
 
   async decide(ctx: BrainContext): Promise<BrainAction> {
+    const abort = new AbortController();
     let timer: NodeJS.Timeout | undefined;
     try {
       return await Promise.race([
-        this.primary.decide(ctx),
+        this.primary.decide({ ...ctx, signal: abort.signal }),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(`no answer within ${this.timeoutMs} ms`)), this.timeoutMs);
+          timer = setTimeout(() => {
+            abort.abort();
+            reject(new Error(`no answer within ${this.timeoutMs} ms`));
+          }, this.timeoutMs);
         }),
       ]);
     } catch (err) {

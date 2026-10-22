@@ -1,5 +1,5 @@
 /**
- * Sends a fake inbound SMS to the agent side, exactly as Twilio would (form-encoded webhook).
+ * Sends a fake inbound SMS to this service, exactly as Twilio would (form-encoded webhook).
  * Signs it with X-Twilio-Signature when TWILIO_AUTH_TOKEN is set, so it also works against a
  * gateway with signature checks on.
  *

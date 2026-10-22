@@ -1,5 +1,5 @@
 /**
- * In-process event bus. gateway events (from GET /v1/events) and agent-side events (messages in
+ * In-process event bus. Gateway events (from GET /v1/events) and conversation events (messages in
  * and out) both land here. The dashboard, the Slack bot and the escalation follow-up all subscribe.
  * A ring buffer lets a dashboard that opens mid-demo replay recent history.
  */
@@ -40,7 +40,7 @@ export class EventBus {
     return true;
   }
 
-  /** Convenience for agent-side events. */
+  /** Convenience for conversation events. */
   emitAgent(type: AgentEventType, data: Record<string, unknown>, requestId?: string): GatewayEvent {
     const event: GatewayEvent = {
       id: `agt_${randomUUID()}`,

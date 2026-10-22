@@ -113,7 +113,9 @@ export class Enrollment {
         throw new Error(`Enrollment: MCP token for ${a.kind}/${a.employee_id} is too short (min 24 chars). Generate one with: openssl rand -hex 24`);
       }
       const agent: EnrolledAgent = {
-        agent_id: a.channel === "mcp" ? `${a.kind}:${employee.employee_id}` : `${a.kind}:${credential}`,
+        // Phone numbers and emails never go into agent_id: it is logged, shown on dashboards and
+        // stored by the gateway. A short hash keeps two senders for one employee distinct.
+        agent_id: a.channel === "mcp" ? `${a.kind}:${employee.employee_id}` : `${a.kind}:${employee.employee_id}-${hash(credential).toString("hex").slice(0, 8)}`,
         kind: a.kind,
         channel: a.channel,
         employee,

@@ -80,7 +80,7 @@ const EnvSchema = z.object({
     .transform((v) => v === "true"),
 
   // Dashboard
-  /** If set, the dashboard requires ?token=<value>. Recommended when the service is on a public tunnel. */
+  /** If set, the dashboard asks for this token once per browser (session cookie); scripts send X-Dashboard-Token. Required on a public URL. */
   DASHBOARD_TOKEN: optionalString,
 
   // Files

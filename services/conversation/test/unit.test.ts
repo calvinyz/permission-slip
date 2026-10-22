@@ -65,7 +65,7 @@ describe("enrollment", () => {
   });
   it("resolves ${ENV} placeholders and finds agents by channel", () => {
     const e = testEnrollment();
-    assert.equal(e.findSmsSender("555-000-0001")?.agent_id, "instinct:+15550000001");
+    assert.match(e.findSmsSender("555-000-0001")?.agent_id ?? "", /^instinct:emp_maya-[0-9a-f]{8}$/, "no phone number in agent_id");
     assert.equal(e.findSmsSender("+15550000002")?.employee.employee_id, "emp_dev");
     assert.equal(e.findEmailSender("MUSE-DEV@example.com")?.kind, "muse");
     assert.equal(e.findMcpToken(TOKENS.claudeDev)?.agent_id, "claude:emp_dev");

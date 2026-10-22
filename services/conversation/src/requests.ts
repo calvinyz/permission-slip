@@ -98,7 +98,14 @@ export class RequestService {
       },
       request.request_id,
     );
-    const decision = await this.deps.gateway.submitRequest(request);
+    let decision: Decision;
+    try {
+      decision = await this.deps.gateway.submitRequest(request);
+    } catch (err) {
+      // The gateway never accepted this request, so it must not linger as one the agent can ask about.
+      this.deps.state.forgetRequest(request.request_id);
+      throw err;
+    }
     this.deps.state.updateDecision(request.request_id, decision);
     for (const l of this.listeners) {
       try {

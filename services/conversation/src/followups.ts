@@ -136,7 +136,9 @@ export class Followups {
     if (!this.mismatches.has(rec.request.request_id)) await new Promise((r) => setTimeout(r, 300));
     const card = (e.data.card as Partial<Card> | undefined) ?? rec.decision?.card ?? undefined;
     const reason = typeof e.data.reason === "string" ? e.data.reason : undefined;
-    await this.send(rec, renderSuspension(card, reason, this.mismatches.get(rec.request.request_id)));
+    const mismatch = this.mismatches.get(rec.request.request_id);
+    this.mismatches.delete(rec.request.request_id);
+    await this.send(rec, renderSuspension(card, reason, mismatch));
   }
 
   private async onReconciled(e: GatewayEvent): Promise<void> {

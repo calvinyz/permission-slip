@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
 import { ScriptedBrain } from "../src/negotiator/scripted-brain.ts";
+import { FallbackBrain } from "../src/negotiator/fallback-brain.ts";
+import { silentLogger } from "../src/logger.ts";
 import { LlmBrain, buildSystemPrompt, toMessages, type MessagesClient } from "../src/negotiator/llm-brain.ts";
 import { type BrainContext, validateSubmitInput, describeToday } from "../src/negotiator/brain.ts";
 import { MERCHANT_CATEGORIES } from "../src/contract/schemas.ts";
@@ -159,10 +161,28 @@ describe("llm brain", () => {
     assert.match(JSON.stringify(last.content), /"is_error":true/);
   });
 
-  it("gives up gracefully after repeated invalid calls", async () => {
+  it("hands over to the scripted parser after repeated invalid calls", async () => {
     const bad = toolUse({ merchant: "" });
-    const a = await new LlmBrain({ client: fakeClient([[bad], [bad], [bad]]), model: "m" }).decide(ctx([{ text: "x" }]));
-    assert.equal(a.type, "reply");
+    const llm = new LlmBrain({ client: fakeClient([[bad], [bad], [bad]]), model: "m" });
+    await assert.rejects(llm.decide(ctx([{ text: "x" }])), /valid request/);
+    const fallback = new FallbackBrain(new LlmBrain({ client: fakeClient([[bad], [bad], [bad]]), model: "m" }), new ScriptedBrain(), silentLogger);
+    assert.ok(["reply", "submit"].includes((await fallback.decide(ctx([{ text: "x" }]))).type));
+  });
+
+  it("cancels the model call when the fallback stops waiting", async () => {
+    let aborted = false;
+    const hanging: MessagesClient = {
+      messages: {
+        create: (_body, opts) =>
+          new Promise((_, reject) => opts?.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(new Error("aborted"));
+          })),
+      },
+    };
+    const brain = new FallbackBrain(new LlmBrain({ client: hanging, model: "m" }), new ScriptedBrain(), silentLogger, 20);
+    await brain.decide(ctx([{ text: "flight please" }]));
+    assert.equal(aborted, true);
   });
 
   it("maps NO_REPLY and plain questions", async () => {

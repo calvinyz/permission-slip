@@ -106,6 +106,8 @@ export class StateStore {
   resetAll(): void {
     this.sessions.clear();
     this.requests.clear();
+    this.slackPosts.clear();
+    this.slackAlerts.clear();
     this.scheduleSave();
   }
 
@@ -122,6 +124,10 @@ export class StateStore {
     this.requests.set(request.request_id, rec);
     this.scheduleSave();
     return rec;
+  }
+
+  forgetRequest(requestId: string): void {
+    if (this.requests.delete(requestId)) this.scheduleSave();
   }
 
   updateDecision(requestId: string, decision: Decision): RequestRecord | undefined {

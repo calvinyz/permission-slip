@@ -19,6 +19,25 @@ export class GatewayApiError extends Error {
   }
 }
 
+export type GatewayFailure = "rejected" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "unavailable";
+
+/** Classifies a failed gateway call so each channel can explain it accurately. */
+export function gatewayFailure(err: unknown): GatewayFailure {
+  if (!(err instanceof GatewayApiError) || err.status === undefined || err.status >= 500 || err.status === 429) return "unavailable";
+  switch (err.status) {
+    case 401:
+      return "unauthorized";
+    case 403:
+      return "forbidden";
+    case 404:
+      return "not_found";
+    case 409:
+      return "conflict";
+    default:
+      return "rejected";
+  }
+}
+
 export interface GatewayClientOptions {
   baseUrl: string;
   token?: string;
@@ -79,19 +98,12 @@ export class GatewayClient implements GatewayApi {
     // Strict: a body the contract doesn't allow never leaves this service.
     this.contract.assert("PurchaseRequest", request);
     const started = Date.now();
-    try {
-      // request_id is the idempotency key, so retrying the same body is safe.
-      const raw = await this.call("POST", "/v1/requests", request, { idempotent: true });
-      const decision = this.check<Decision>("Decision", raw, "POST /v1/requests");
-      this.log.info("gateway: decision", { request_id: request.request_id, status: decision.status, ms: Date.now() - started });
-      return decision;
-    } catch (err) {
-      if (err instanceof GatewayApiError && err.status === 409) {
-        this.log.warn("gateway: request_id conflict, fetching its decision", { request_id: request.request_id });
-        return this.getRequest(request.request_id);
-      }
-      throw err;
-    }
+    // request_id is the idempotency key, so retrying the same body is safe. A 409 means the id was
+    // already used for a different body; that decision belongs to another purchase, so it propagates.
+    const raw = await this.call("POST", "/v1/requests", request, { idempotent: true });
+    const decision = this.check<Decision>("Decision", raw, "POST /v1/requests");
+    this.log.info("gateway: decision", { request_id: request.request_id, status: decision.status, ms: Date.now() - started });
+    return decision;
   }
 
   async getRequest(requestId: string): Promise<Decision> {
@@ -132,6 +144,7 @@ export class GatewayClient implements GatewayApi {
         }
         if (res.ok) return parsed;
         const info = errorInfo(parsed);
+        if (res.status === 401) this.log.error("gateway: rejected the API token; check GATEWAY_API_TOKEN", { method, path });
         const err = new GatewayApiError(`${method} ${path} failed with HTTP ${res.status}${info.message ? `: ${info.message}` : ""}`, res.status, parsed, info.code);
         if (res.status >= 500 || res.status === 429) lastError = err;
         else throw err;

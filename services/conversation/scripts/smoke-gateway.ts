@@ -74,13 +74,13 @@ function request(over: Partial<PurchaseRequest>): PurchaseRequest {
   created.add(request_id);
   return {
     request_id,
-    agent_id: "claude:agent-side-smoke",
+    agent_id: "claude:conversation-smoke",
     channel: "mcp",
     employee_id: "emp_maya",
     merchant: "United Airlines",
     merchant_category: "airlines",
     amount_usd: 480,
-    description: "PHL to SFO, economy, Tue Oct 27 (agent-side smoke test)",
+    description: "PHL to SFO, economy, Tue Oct 27 (smoke test)",
     justification: "Acme customer meeting",
     travel: { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" },
     claims: { meeting: "Acme", date: "2026-10-27" },
@@ -156,7 +156,7 @@ if (approved) {
 
 console.log("\n4. POST /v1/requests (scenario 2 first class, expect counter)");
 {
-  const r = await rawCall("POST", "/v1/requests", request({ employee_id: "emp_dev", agent_id: "muse:agent-side-smoke", channel: "sms", amount_usd: 1850, description: "PHL to SFO, first class (smoke test)", travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" } }));
+  const r = await rawCall("POST", "/v1/requests", request({ employee_id: "emp_dev", agent_id: "muse:conversation-smoke", channel: "sms", amount_usd: 1850, description: "PHL to SFO, first class (smoke test)", travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" } }));
   checkDecision(r.json, "counter");
   const d = r.json as { status?: string; counteroffer?: unknown };
   if (d.status === "counter" && d.counteroffer) ok(`counter with offer ${JSON.stringify(d.counteroffer).slice(0, 160)}`);
@@ -172,7 +172,7 @@ if (values.escalate) {
     if (d.status !== "escalated" || !d.escalation) bad(`expected escalated with an escalation, got ${d.status}`);
     else {
       ok(`escalated to ${d.escalation.approver_id} (${d.reason})`);
-      const r = await client.resolveEscalation(d.escalation.escalation_id, { action: "approve", resolver_id: d.escalation.approver_id, note: "agent-side smoke test" });
+      const r = await client.resolveEscalation(d.escalation.escalation_id, { action: "approve", resolver_id: d.escalation.approver_id, note: "smoke test" });
       if (r.status === "approved" && r.card) ok("resolve approved it and issued a card");
       else bad(`resolve returned ${r.status} without a card`);
     }

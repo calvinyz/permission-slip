@@ -30,7 +30,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
 
   const eventsOf = (requestId: string) => c.service.bus.recent().filter((e) => e.request_id === requestId);
   const typesOf = (requestId: string) => eventsOf(requestId).map((e) => e.type);
-  const lastRequest = (agentId: string) => c.service.state.requestsFor(agentId).at(-1);
+  const lastRequest = (phone: string) => c.service.state.requestsFor(c.service.enrollment.findSmsSender(phone)!.agent_id).at(-1);
   const mayaTexts = () => c.sms.to(PHONES.instinctMaya);
   const devTexts = () => c.sms.to(PHONES.museDev);
 
@@ -53,7 +53,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       assert.match(reply, /Card number 4242 \d{4} \d{4} \d{4}, exp \d{2}\/\d{2}, CVC \d{3}\./, "the agent gets what it needs to check out");
       assert.match(reply, /Check out at http:\/\/127\.0\.0\.1:\d+\/merchant/);
 
-      const rec = lastRequest(`instinct:${PHONES.instinctMaya}`)!;
+      const rec = lastRequest(PHONES.instinctMaya)!;
       assert.deepEqual(rec.request.travel, { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" });
       assert.deepEqual(rec.request.claims, { meeting: "Acme", date: "2026-10-27" });
       assert.equal(rec.request.justification, "Acme customer meeting");
@@ -61,7 +61,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       assert.deepEqual(contract().errors("PurchaseRequest", rec.request), [], "what we sent matches api/openapi.yaml");
 
       // Nothing stored or shown carries the card number.
-      const session = c.service.state.getSession(`instinct:${PHONES.instinctMaya}`)!;
+      const session = c.service.state.getSession(c.service.enrollment.findSmsSender(PHONES.instinctMaya)!.agent_id)!;
       assert.ok(!JSON.stringify(session).match(/4242 \d{4} \d{4} \d{4}/), "conversation history keeps only the masked number");
       const shown = c.service.bus.recent().filter((e) => e.type === "agent.message.out").map((e) => String(e.data.text)).join("\n");
       assert.match(shown, /•••• •••• •••• \d{4}/);
@@ -83,18 +83,18 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       await sendSms(c.url, PHONES.museDev, "Book a United Airlines first class flight to SFO for $1,850 for the Acme meeting Tuesday.");
       const counter = await until(() => devTexts().at(-1), 8000, "counter reply");
       assert.match(counter, /^Not approved as requested\. Policy allows economy only.*Within-policy alternative: PHL to SFO, economy, 2026-10-27 at United Airlines for \$480\. Reply YES/);
-      const first = lastRequest(`muse:${PHONES.museDev}`)!;
+      const first = lastRequest(PHONES.museDev)!;
       assert.equal(first.decision?.status, "counter");
       await sendSms(c.url, PHONES.museDev, "Yes");
       const approved = await until(() => devTexts().find((m) => m.startsWith("Approved.")), 8000, "approval after accepting");
       assert.match(approved, /limit \$480/);
-      const second = lastRequest(`muse:${PHONES.museDev}`)!;
+      const second = lastRequest(PHONES.museDev)!;
       assert.equal(second.request.parent_request_id, first.request.request_id);
       assert.equal(second.request.travel?.cabin_class, "economy");
     });
   });
 
-  describe("review regressions over SMS", () => {
+  describe("SMS edge cases", () => {
     it("an agent that echoes the counteroffer wording still gets approved", async () => {
       await sendSms(c.url, PHONES.museDev, "Book a United Airlines first class flight to SFO for $1,850 for the Acme meeting Tuesday.");
       const counter = await until(() => devTexts().at(-1)?.startsWith("Not approved as requested") && devTexts().at(-1), 8000, "counter");
@@ -110,13 +110,13 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       const pan = "4242 4242 4242 9876";
       await sendSms(c.url, PHONES.museDev, `Booking now with card ${pan}, CVC 321. Thanks!`);
       await until(() => c.service.bus.recent().some((e) => e.type === "agent.message.in" && String(e.data.text).includes("9876")), 8000, "inbound event");
-      const session = JSON.stringify(c.service.state.getSession(`muse:${PHONES.museDev}`));
+      const session = JSON.stringify(c.service.state.getSession(c.service.enrollment.findSmsSender(PHONES.museDev)!.agent_id));
       assert.ok(!session.includes(pan) && !session.includes("CVC 321"), "session history");
       const shown = JSON.stringify(c.service.bus.recent());
       assert.ok(!shown.includes(pan) && !shown.includes("CVC 321"), "bus and dashboard");
       await sendSms(c.url, PHONES.museDev, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting Tuesday.");
       await until(() => devTexts().at(-1)?.startsWith("Approved."), 8000, "approval");
-      const sent = JSON.stringify(lastRequest(`muse:${PHONES.museDev}`)!.request);
+      const sent = JSON.stringify(lastRequest(PHONES.museDev)!.request);
       assert.ok(!sent.includes(pan), "transcript sent to the gateway");
     });
   });
@@ -127,7 +127,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       await sendSms(c.url, PHONES.instinctMaya, "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 3.");
       const msg = await until(() => mayaTexts().find((m) => m.startsWith("Sent to your manager")), 8000, "escalation reply");
       assert.match(msg, /exceeds the \$1,500\.00 left in the Engineering conferences budget/);
-      rid = lastRequest(`instinct:${PHONES.instinctMaya}`)!.request.request_id;
+      rid = lastRequest(PHONES.instinctMaya)!.request.request_id;
       const post = await until(() => c.slack.posts.find((p) => JSON.stringify(p.blocks).includes(rid)), 8000, "Slack post");
       assert.equal(post.channel, "C_MANAGERS");
       assert.match(post.text, /Maya Chen wants \$2,400/);
@@ -163,7 +163,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
     it("$620 against a $480 mandate suspends the card, alerts finance, and tells the agent", async () => {
       await sendSms(c.url, PHONES.instinctMaya, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting on 2026-10-27.");
       await until(() => mayaTexts().at(-1)?.startsWith("Approved."), 8000, "approval");
-      const rec = lastRequest(`instinct:${PHONES.instinctMaya}`)!;
+      const rec = lastRequest(PHONES.instinctMaya)!;
       const rid = rec.request.request_id;
       const card = rec.decision!.card!;
       await gateway.charge(card.card_id, 620);
@@ -191,7 +191,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
         await sendSms(c.url, PHONES.museDev, text);
         const reply = await until(() => devTexts().length > before && devTexts().at(-1), 8000, "reply");
         assert.match(reply, /^Denied\./, text);
-        const rec = lastRequest(`muse:${PHONES.museDev}`)!;
+        const rec = lastRequest(PHONES.museDev)!;
         await until(() => typesOf(rec.request.request_id).includes("injection.blocked"), 8000, "injection.blocked");
         assert.equal(rec.decision?.card, null);
       }
@@ -201,7 +201,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       await sendSms(c.url, PHONES.museDev, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting Tuesday.");
       const reply = await until(() => devTexts().at(-1)?.startsWith("Approved.") && devTexts().at(-1), 8000, "approval");
       assert.ok(reply);
-      const rec = lastRequest(`muse:${PHONES.museDev}`)!;
+      const rec = lastRequest(PHONES.museDev)!;
       assert.ok(rec.request.transcript!.every((t) => !/CEO|Ignore previous|emergency/.test(t.text)), "transcript holds only this exchange");
     });
   });
@@ -288,7 +288,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       const out = await until(() => c.service.bus.recent().find((e) => e.type === "agent.message.out" && e.data.channel === "email"), 8000, "email reply");
       assert.equal(out.data.dry_run, true);
       assert.match(String(out.data.text), /^Approved\./);
-      assert.equal(c.service.state.requestsFor("muse:muse-dev@example.com").length, 1, "the spoof created nothing");
+      assert.equal(c.service.state.requestsFor(c.service.enrollment.findEmailSender("muse-dev@example.com")!.agent_id).length, 1, "the spoof created nothing");
     });
   });
 

@@ -3,8 +3,6 @@
 import { STEPS, applyAll, apply, chipStatus, createModel, orderedRequests } from "./model.js";
 
 const params = new URLSearchParams(location.search);
-const token = params.get("token");
-const qs = token ? `?token=${encodeURIComponent(token)}` : "";
 const TZ = "America/Los_Angeles";
 
 const theme = params.get("theme");
@@ -397,7 +395,7 @@ document.addEventListener("keydown", (ev) => {
 // ---- data ----
 async function loadConfig() {
   try {
-    const cfg = await (await fetch(`config${qs}`)).json();
+    const cfg = await (await fetch("config")).json();
     $("company").textContent = cfg.company || "";
     employees = cfg.employees || employees;
     $("brain").textContent = cfg.negotiator ? (cfg.negotiator === "scripted" ? "Scripted negotiator" : "Claude negotiator") : "";
@@ -407,8 +405,6 @@ async function loadConfig() {
     $("conn-gateway").dataset.state = "down";
   }
 }
-loadConfig();
-setInterval(loadConfig, 5000);
 
 let renderQueued = false;
 function scheduleRender() {
@@ -421,7 +417,7 @@ function scheduleRender() {
 }
 
 function connect() {
-  const es = new EventSource(`stream${qs}`);
+  const es = new EventSource("stream");
   es.addEventListener("open", () => ($("conn-dash").dataset.state = "up"));
   es.addEventListener("error", () => ($("conn-dash").dataset.state = "down"));
   es.addEventListener("reset", () => {
@@ -438,5 +434,38 @@ function connect() {
     scheduleRender();
   });
 }
-connect();
+// ---- access ----
+// With DASHBOARD_TOKEN set, the token is exchanged once for an HttpOnly session cookie.
+function showSignIn() {
+  if ($("signin")) return;
+  const form = document.createElement("form");
+  form.id = "signin";
+  form.className = "signin";
+  form.innerHTML = '<h2>Permission Slip dashboard</h2><label for="signin-token">Dashboard token</label><input id="signin-token" type="password" autocomplete="current-password" required><button type="submit">Open dashboard</button><p id="signin-error" role="alert"></p>';
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await fetch("session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: $("signin-token").value }) });
+    if (!res.ok) {
+      $("signin-error").textContent = "That token was not accepted.";
+      return;
+    }
+    form.remove();
+    start();
+  });
+  document.body.append(form);
+  $("signin-token").focus();
+}
+
+let started = false;
+async function start() {
+  const res = await fetch("config").catch(() => undefined);
+  if (res?.status === 401) return showSignIn();
+  if (started) return;
+  started = true;
+  loadConfig();
+  setInterval(loadConfig, 5000);
+  connect();
+}
+
 render();
+start();

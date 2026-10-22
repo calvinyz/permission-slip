@@ -18,8 +18,8 @@ import type { EventBus } from "../bus.ts";
 import type { EnrolledAgent, Enrollment } from "../enrollment.ts";
 import type { Logger } from "../logger.ts";
 import { validateSubmitInput } from "../negotiator/brain.ts";
-import { describeCard, maskCardNumbers, money, renderDecision, type RenderOptions } from "../negotiator/render.ts";
-import { GatewayApiError } from "../gateway/client.ts";
+import { describeCard, maskCardNumbers, money, renderDecision, renderGatewayFailure, type RenderOptions } from "../negotiator/render.ts";
+import { gatewayFailure } from "../gateway/client.ts";
 import { NotYourRequestError, type RequestService } from "../requests.ts";
 import type { StateStore } from "../state.ts";
 
@@ -132,9 +132,9 @@ export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
       } catch (err) {
         deps.log.error("mcp: request_purchase failed", { agent_id: agent.agent_id, error: (err as Error).message });
         return errorResult(
-          err instanceof ContractError || (err instanceof GatewayApiError && err.status !== undefined && err.status < 500)
-            ? `The approval system rejected the request format: ${(err as Error).message}`
-            : "The approval system is unreachable right now. Nothing was approved or charged; try again shortly.",
+          err instanceof ContractError
+            ? `The approval system rejected the request format: ${err.message}`
+            : renderGatewayFailure(gatewayFailure(err)),
         );
       }
     },
@@ -153,8 +153,8 @@ export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
         const decision = await deps.requests.status(agent, request_id);
         return { content: [{ type: "text", text: `${renderDecision(decision, deps.render)}\n\nNext step: ${nextStep(decision)}` }], structuredContent: decisionPayload(decision) };
       } catch (err) {
-        if (err instanceof NotYourRequestError) return errorResult("No request with that ID for this employee.");
-        return errorResult("Couldn't reach the approval system. Try again shortly.");
+        if (err instanceof NotYourRequestError || gatewayFailure(err) === "not_found") return errorResult("No request with that ID for this employee.");
+        return errorResult(renderGatewayFailure(gatewayFailure(err)));
       }
     },
   );
@@ -185,8 +185,8 @@ export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
           },
         };
       } catch (err) {
-        if (err instanceof NotYourRequestError) return errorResult("No request with that ID for this employee.");
-        return errorResult("Couldn't reach the approval system. Try again shortly.");
+        if (err instanceof NotYourRequestError || gatewayFailure(err) === "not_found") return errorResult("No request with that ID for this employee.");
+        return errorResult(renderGatewayFailure(gatewayFailure(err)));
       }
     },
   );
