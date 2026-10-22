@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 // @ts-expect-error plain ESM JavaScript module shared with the browser
 import { applyAll, chipStatus, createModel, orderedRequests } from "../src/dashboard/public/model.js";
 
@@ -90,5 +91,21 @@ describe("dashboard conversation grouping", () => {
       ev("agent.message.out", { agent_id: "a", text: "Denied." }, "req_2"),
     ]);
     assert.deepEqual(m.convos.a.map((x: { request_id?: string }) => x.request_id), ["req_1", "req_1", "req_1", "req_1", "req_2", "req_2"]);
+  });
+});
+
+describe("recorded run", () => {
+  const recorded = JSON.parse(readFileSync(new URL("../src/dashboard/public/recorded-run.json", import.meta.url), "utf8"));
+
+  it("replays the whole demo script", () => {
+    const statuses = orderedRequests(applyAll(createModel(), recorded)).map((r: unknown) => chipStatus(r)).reverse();
+    assert.deepEqual(statuses, ["approved", "counter", "suspended", "blocked", "blocked"]);
+  });
+
+  it("carries no card numbers, phone numbers, tokens or private hosts", () => {
+    const text = JSON.stringify(recorded);
+    assert.ok(!/\d{16}/.test(text), "full card number");
+    assert.ok(!/\+1\d{10}/.test(text), "phone number");
+    assert.ok(!/dev-token|local_demo_|tok_|\.ts\.net/.test(text), "token or private host");
   });
 });

@@ -23,7 +23,7 @@ import type { Presenter } from "../presenter.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(here, "public");
-const TYPES: Record<string, string> = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8" };
+const TYPES: Record<string, string> = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".json": "application/json; charset=utf-8" };
 
 export interface DashboardOptions {
   bus: EventBus;
@@ -117,7 +117,8 @@ export function dashboardRouter(opts: DashboardOptions): Router {
     res.type("html").set("Cache-Control", "no-store").send(readFileSync(join(PUBLIC_DIR, "index.html"), "utf8"));
   });
 
-  router.get(["/app.js", "/model.js", "/styles.css"], (req, res) => {
+  // recorded-run.json: one full play of the demo script, shown when there's no live data.
+  router.get(["/app.js", "/model.js", "/styles.css", "/recorded-run.json"], (req, res) => {
     const name = req.path.slice(1);
     const ext = name.slice(name.lastIndexOf("."));
     res.type(TYPES[ext] ?? "text/plain").set("Cache-Control", "no-store").send(readFileSync(join(PUBLIC_DIR, name), "utf8"));

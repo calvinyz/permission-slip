@@ -137,6 +137,10 @@ For a recorded or live demo, `DEMO_PRESENTER=true` lets the signed-in dashboard 
 
 `P` shows the step list (hidden by default, so it stays off camera) and `Shift+R` resets for a new take. To start the gateway side fresh too, delete `services/gateway/gateway.db` and restart it.
 
+### Recorded run
+
+When there's no live data (the gateway isn't running, or nothing has happened yet), the dashboard shows [`recorded-run.json`](src/dashboard/public/recorded-run.json), one full play of the script above, labeled **Recorded run · not live**. The first live event replaces it. `Shift+R` or `?live=1` keeps the view empty instead. To re-record it, run the script with presenter mode against a local gateway and save the `snapshot` event from `GET /dashboard/stream`; it is already stripped of card numbers and transcripts.
+
 ## Configuration
 
 All settings come from the environment (`.env` is loaded at startup; see [`.env.example`](.env.example)). Every integration is optional: without its credentials it runs in dry-run or is switched off, and the service still starts.

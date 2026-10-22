@@ -266,3 +266,7 @@ kbd:first-child { margin-left: 0; }
 .presenter li.running::after { content: " …"; }
 .presenter .hint { margin: 10px 0 0; color: var(--side-muted); }
 .presenter .error { margin: 8px 0 0; color: #F2766C; }
+
+/* Shown in place of the live indicators while the recorded run is on screen. */
+.tag.replay { padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+.tag.replay[hidden], .conn[hidden] { display: none; }

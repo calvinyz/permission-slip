@@ -428,19 +428,66 @@ function connect() {
   es.addEventListener("open", () => ($("conn-dash").dataset.state = "up"));
   es.addEventListener("error", () => ($("conn-dash").dataset.state = "down"));
   es.addEventListener("reset", () => {
+    leaveRecording();
     model = createModel();
     selected = null;
     scheduleRender();
+    showRecording();
   });
   es.addEventListener("snapshot", (ev) => {
-    model = applyAll(createModel(), JSON.parse(ev.data));
-    scheduleRender();
+    const events = JSON.parse(ev.data);
+    if (events.length) {
+      leaveRecording();
+      model = applyAll(createModel(), events);
+      scheduleRender();
+    } else if (!showingRecording) {
+      model = createModel();
+      scheduleRender();
+      showRecording();
+    }
   });
   es.addEventListener("bus", (ev) => {
+    leaveRecording();
     apply(model, JSON.parse(ev.data));
     scheduleRender();
   });
 }
+// ---- recorded run ----
+// With no live data (the service or gateway isn't running, or nothing has happened yet), show a
+// recorded run of the demo script, clearly labeled. The first live event replaces it. ?live=1, or
+// Shift+R in presenter mode, keeps the view empty instead (for a clean take).
+let showingRecording = false;
+let recordingAllowed = !params.has("live");
+
+async function showRecording() {
+  if (!recordingAllowed || showingRecording) return;
+  try {
+    const events = await (await fetch("recorded-run.json")).json();
+    if (!recordingAllowed) return;
+    model = applyAll(createModel(), events);
+    selected = null;
+    showingRecording = true;
+    setRecordingLabel(true);
+    scheduleRender();
+  } catch {
+    /* no recording available */
+  }
+}
+
+function leaveRecording() {
+  if (!showingRecording) return;
+  showingRecording = false;
+  model = createModel();
+  selected = null;
+  setRecordingLabel(false);
+}
+
+function setRecordingLabel(on) {
+  $("replay-tag").hidden = !on;
+  $("conn-gateway").hidden = on;
+  $("conn-dash").hidden = on;
+}
+
 // ---- presenter ----
 // With DEMO_PRESENTER=true, N plays the next step of the demo script through the real pipeline.
 // P shows the step list (hidden by default, so it stays off camera); Shift+R resets for a new take.
@@ -517,6 +564,7 @@ async function presenterNext() {
 
 async function presenterReset() {
   presenterError = "";
+  recordingAllowed = false;
   const res = await fetch("presenter/reset", { method: "POST" }).catch(() => undefined);
   if (res?.ok) presenter = await res.json();
   renderPresenter();
@@ -548,6 +596,8 @@ let started = false;
 async function start() {
   const res = await fetch("config").catch(() => undefined);
   if (res?.status === 401) return showSignIn();
+  // No service answering (or a static copy of the page): show the recorded run, keep trying live.
+  if (!res?.ok) showRecording();
   if (started) return;
   started = true;
   loadConfig();
