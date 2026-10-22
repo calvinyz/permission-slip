@@ -56,7 +56,7 @@ const CHANNEL = { sms: "SMS", mcp: "MCP", email: "Email" };
 function tick() {
   const now = new Date();
   $("clock-time").textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: TZ });
-  $("clock-date").textContent = `${now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: TZ })} · PT`;
+  $("clock-date").textContent = `${now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: TZ })}, Pacific`;
   renderTimer();
 }
 setInterval(tick, 250);
@@ -83,6 +83,7 @@ function setFollow(on) {
 function render() {
   const r = current();
   renderChips(r);
+  renderHead(r);
   renderSteps(r);
   renderConvo(r);
   renderPolicy(r);
@@ -100,16 +101,39 @@ function renderChips(r) {
           const st = chipStatus(x);
           const req = x.request || {};
           const agent = model.agents[x.agent_id];
+          const who = agent?.label || (x.agent_id || "").split(":")[0];
           return h(
             "button",
             { type: "button", class: "chip", "aria-current": x.id === r?.id ? "true" : "false", onclick: () => select(x.id), title: x.id },
-            h("b", { text: req.merchant || x.id }),
+            h("span", { class: "chip-m", text: req.merchant || x.id }),
+            h("span", { class: "chip-a", text: money(req.amount_usd) }),
+            h("small", { text: [who, time(x.firstTs)].filter(Boolean).join(", ") }),
             h("span", { class: `pill ${st}`, text: st }),
-            h("small", { text: [money(req.amount_usd), agent?.kind || (x.agent_id || "").split(":")[0], CHANNEL[x.channel] || x.channel, time(x.firstTs)].filter(Boolean).join(" · ") }),
           );
         })
       : [h("span", { class: "empty", text: "Waiting for the first request…" })]),
   );
+}
+
+function renderHead(r) {
+  if (!r) {
+    $("rq-title").textContent = "No requests yet";
+    $("rq-desc").textContent = "Text the gateway number, or ask Claude to buy something with the Permission Slip connector.";
+    $("rq-meta").textContent = "";
+    $("rq-amount").textContent = "";
+    $("rq-status").replaceChildren();
+    return;
+  }
+  const req = r.request || {};
+  const agent = model.agents[r.agent_id];
+  const employee = r.employee || person(req.employee_id);
+  const via = agent ? `${agent.label}${CHANNEL[r.channel] ? ` over ${CHANNEL[r.channel]}` : ""}` : CHANNEL[r.channel] || "";
+  $("rq-title").textContent = req.merchant || r.id;
+  $("rq-desc").textContent = req.description || "";
+  $("rq-meta").textContent = [employee ? `For ${employee}` : "", via ? `requested by ${via}` : "", r.firstTs ? `at ${time(r.firstTs)}` : ""].filter(Boolean).join(", ").replace(/^requested/, "Requested");
+  $("rq-amount").textContent = money(req.amount_usd);
+  const st = chipStatus(r);
+  $("rq-status").replaceChildren(h("span", { class: `pill big ${st}`, text: st }));
 }
 
 function renderSteps(r) {
@@ -137,7 +161,7 @@ function renderConvo(r) {
   const agentId = r?.agent_id || Object.keys(model.convos).at(-1);
   const msgs = agentId ? model.convos[agentId] || [] : [];
   const agent = agentId ? model.agents[agentId] : null;
-  $("convo-meta").textContent = agent ? [agent.label, CHANNEL[agent.channel] || agent.channel].filter(Boolean).join(" · ") : "";
+  $("convo-meta").textContent = agent ? `${agent.label}${CHANNEL[agent.channel] ? `, ${CHANNEL[agent.channel]}` : ""}` : "";
   if (!msgs.length) {
     box.replaceChildren(h("p", { class: "empty-state", text: r ? "This request came in without a conversation (e.g. submitted directly to the API)." : "Text the gateway number, or call request_purchase from Claude, to start." }));
     return;
@@ -156,7 +180,7 @@ function renderConvo(r) {
 
 function renderPolicy(r) {
   const box = $("policy");
-  $("policy-version").textContent = r?.policyVersion || "";
+  $("policy-version").textContent = r?.policyVersion ? `Policy ${r.policyVersion}` : "";
   if (!r) return box.replaceChildren(h("p", { class: "empty-state", text: "Verification checks and the policy engine's rule-by-rule decision appear here." }));
   const parts = [];
   if (r.injection) {
@@ -167,7 +191,7 @@ function renderPolicy(r) {
         { class: "callout bad" },
         h("b", { text: "Injection blocked" }),
         "The request tried to instruct the approver. Claims of authority, urgency or prior approval don't change policy.",
-        ...hits.slice(0, 3).map((x) => h("div", { class: "mono", style: "font-size:12px;margin-top:4px", text: `${x.pattern} in ${x.field}: “${x.excerpt.trim()}”` })),
+        ...hits.slice(0, 3).map((x) => h("div", { style: "font-size:13px;margin-top:6px" }, h("span", { class: "mono", text: x.pattern }), ` in ${x.field}: “${x.excerpt.trim()}”`)),
       ),
     );
   }
@@ -188,14 +212,14 @@ function renderPolicy(r) {
     parts.push(
       e.state === "open"
         ? h("div", { class: "callout warn" }, h("b", { text: "Escalated to manager" }), h("span", { class: "spinner", "aria-hidden": "true" }), `Waiting for ${person(e.approver) || "the manager"} in Slack${e.reason ? `. ${e.reason}.` : ""}`)
-        : h("div", { class: `callout ${e.decision === "denied" ? "bad" : "good"}` }, h("b", { text: `Manager ${e.decision || "resolved"}` }), `${person(e.by) || "In Slack"} at ${time(e.ts)}${e.note ? ` · ${e.note}` : ""}`),
+        : h("div", { class: `callout ${e.decision === "denied" ? "bad" : "good"}` }, h("b", { text: `Manager ${e.decision || "resolved"}` }), `${person(e.by) || "In Slack"} at ${time(e.ts)}${e.note ? `: “${e.note}”` : ""}`),
     );
   }
   if (r.checks.length) {
-    parts.push(h("div", {}, h("p", { class: "sub", text: "Claims verified" }), h("ul", { class: "checks" }, ...r.checks.map((c) => { const cls = resultClass(c.result); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("span", { text: c.name.replace(/_/g, " ") }), c.detail ? h("small", { text: c.detail }) : null), h("span", { class: `pill ${cls}`, text: c.result })); }))));
+    parts.push(h("div", {}, h("p", { class: "sub", text: "Claims checked" }), h("ul", { class: "checks" }, ...r.checks.map((c) => { const cls = resultClass(c.result); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("span", { text: c.name.replace(/_/g, " ") }), c.detail ? h("small", { text: c.detail }) : null), h("span", { class: `pill ${cls}`, text: c.result })); }))));
   }
   if (r.trace.length) {
-    parts.push(h("div", {}, h("p", { class: "sub", text: "Policy trace (deterministic rules, no LLM)" }), h("ul", { class: "trace" }, ...r.trace.map((t) => { const cls = resultClass(String(t.result)); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("code", { text: t.rule }), t.detail ? h("small", { text: t.detail }) : null), h("span", { class: `pill ${cls}`, text: String(t.result) })); }))));
+    parts.push(h("div", {}, h("p", { class: "sub", text: "Policy rules, evaluated in code with no model involved" }), h("ul", { class: "trace" }, ...r.trace.map((t) => { const cls = resultClass(String(t.result)); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("code", { text: t.rule }), t.detail ? h("small", { text: t.detail }) : null), h("span", { class: `pill ${cls}`, text: String(t.result) })); }))));
   }
   box.replaceChildren(...parts);
 }
@@ -205,7 +229,7 @@ function renderCard(r) {
   const card = r?.card;
   const mandate = r?.mandate;
   if (!card && !mandate) {
-    box.replaceChildren(h("p", { class: "empty-state", text: r && ["denied", "counter", "escalated"].includes(r.status) ? "No card. A card only exists after a signed mandate." : "When a request is approved, the signed mandate and its single-use Ramp card appear here." }));
+    box.replaceChildren(h("p", { class: "empty-state", text: r && ["denied", "counter", "escalated"].includes(r.status) ? "No card. A card is only issued against a signed mandate." : "When a request is approved, its signed mandate and single-use card appear here." }));
     return;
   }
   const state = card?.state || "pending";
@@ -213,7 +237,7 @@ function renderCard(r) {
     ? h(
         "div",
         { class: `vcard ${state}` },
-        h("div", { class: "vcard-top" }, h("span", { text: "Ramp · single-use virtual card" }), h("span", { class: "vcard-state", text: state.toUpperCase() })),
+        h("div", { class: "vcard-top" }, h("span", { text: "Single-use card" }), h("span", { class: "vcard-state", text: state[0].toUpperCase() + state.slice(1) })),
         h("div", { class: "vcard-num", text: `•••• •••• •••• ${card.last4 || (card.card_id || "").slice(-4)}` }),
         h("div", { class: "vcard-bot" }, h("div", {}, "Limit", h("b", { text: money(card.limit_usd) || "—" })), h("div", {}, "Locked to", h("b", { text: card.merchant_lock || "—" })), h("div", {}, "Expires", h("b", { text: card.expires_at ? when(card.expires_at) : "—" }))),
       )
@@ -230,7 +254,8 @@ function renderCard(r) {
     ["Key", mandate?.key_id],
     ["Card ID", card?.card_id],
   ].filter(([, v]) => v);
-  const kv = h("dl", { class: "kv" }, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: String(v) })]), sig ? [h("dt", { text: "Signature" }), h("dd", { class: "sig", text: `${String(sig).slice(0, 34)}${String(sig).length > 34 ? "…" : ""} ✓` })] : []);
+  const IDS = new Set(["Mandate", "Agent", "Key", "Card ID"]);
+  const kv = h("dl", { class: "kv" }, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { class: IDS.has(k) ? "id" : undefined, text: String(v) })]), sig ? [h("dt", { text: "Signature" }), h("dd", { class: "sig", text: `${String(sig).slice(0, 18)}… verified` })] : []);
   const extra = card?.state === "suspended" ? h("div", { class: "callout bad" }, h("b", { text: "Card suspended" }), humanize(card.suspendedReason) || "Settlement didn't match the mandate.") : null;
   box.replaceChildren(h("div", {}, vcard), h("div", {}, kv, extra));
 }
@@ -239,7 +264,7 @@ function renderTimer() {
   const r = selected ? model.requests[selected] : null;
   const el = $("card-timer");
   if (!r?.card?.expires_at || r.card.state !== "active") {
-    el.textContent = r?.card ? r.card.state : "";
+    el.textContent = r?.card?.state ? r.card.state[0].toUpperCase() + r.card.state.slice(1) : "";
     return;
   }
   const left = Math.max(0, Math.floor((Date.parse(r.card.expires_at) - Date.now()) / 1000));
@@ -251,7 +276,7 @@ function renderTimer() {
 function renderTxn(r) {
   const box = $("txn");
   if (!r || !r.txns.length) {
-    box.replaceChildren(h("p", { class: "empty-state", text: r?.card ? "Waiting for the merchant to charge the card…" : "Settled charges, reconciliation against the mandate, and GL coding appear here." }));
+    box.replaceChildren(h("p", { class: "empty-state", text: r?.card ? "Waiting for the merchant to charge the card…" : r && ["denied", "counter"].includes(r.status) ? "Nothing to charge. No card was issued for this request." : "When the card is charged, the settlement is matched to its mandate and coded here." }));
     return;
   }
   const limit = r.card?.limit_usd;
@@ -264,7 +289,7 @@ function renderTxn(r) {
         "div",
         { class: `txn ${t.state}` },
         h("div", { class: "txn-top" }, h("span", { class: "txn-amt", text: money(t.amount) }), h("span", { class: `pill ${t.state}`, text: t.state })),
-        h("div", { class: "muted", text: [t.merchant, time(t.ts)].filter(Boolean).join(" · ") }),
+        h("div", { class: "muted", text: [t.merchant, t.ts ? `settled at ${time(t.ts)}` : ""].filter(Boolean).join(", ") }),
         typeof limit === "number" ? h("div", {}, h("div", { class: `meter${over ? " over" : ""}` }, h("i", { style: `width:${pct}%` })), h("div", { class: "meter-l" }, h("span", { text: `Charged ${money(t.amount)}` }), h("span", { text: `Mandate max ${money(limit)}` }))) : null,
         t.state === "mismatch" ? h("div", { class: "callout bad" }, h("b", { text: "Mismatch" }), `${(t.reason || `Charged ${money(t.amount)} against ${money(t.expected ?? limit)}`).replace(/[.\s]*$/, "")}. Card auto-suspended; finance alerted in Slack.`) : null,
         Array.isArray(t.match) && t.match.length
@@ -313,9 +338,9 @@ document.addEventListener("keydown", (ev) => {
 async function loadConfig() {
   try {
     const cfg = await (await fetch(`config${qs}`)).json();
-    $("company").textContent = cfg.company ? `for ${cfg.company}` : "";
+    $("company").textContent = cfg.company || "";
     employees = cfg.employees || employees;
-    $("brain").textContent = cfg.negotiator ? `negotiator: ${cfg.negotiator}` : "";
+    $("brain").textContent = cfg.negotiator ? (cfg.negotiator === "scripted" ? "Scripted negotiator" : "Claude negotiator") : "";
     $("conn-ramp").dataset.state = cfg.ramp_events_connected ? "up" : "down";
     $("conn-ramp").title = cfg.gateway_url || "";
   } catch {
