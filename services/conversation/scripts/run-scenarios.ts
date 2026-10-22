@@ -39,8 +39,9 @@ type Rec = { request: { request_id: string; amount_usd: number; merchant: string
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function requests(agentId: string): Promise<Rec[]> {
-  const res = await fetch(`${SERVICE_URL}/admin/requests?agent_id=${encodeURIComponent(agentId)}`, { headers: adminHeaders });
+async function requests(sender: string): Promise<Rec[]> {
+  const res = await fetch(`${SERVICE_URL}/admin/requests?sender=${encodeURIComponent(sender)}`, { headers: adminHeaders });
+  if (res.status === 404) throw new Error(`${sender} isn't enrolled on the running service`);
   if (!res.ok) throw new Error(`GET /admin/requests failed: HTTP ${res.status}`);
   return (await res.json()) as Rec[];
 }
@@ -57,27 +58,15 @@ async function sms(from: string, body: string) {
 
 /** Sends an SMS and waits for a new request with a decision from that agent. */
 async function smsUntilDecision(from: string, body: string, timeoutMs = 60_000): Promise<Rec> {
-  const agentId = (await agentIdFor(from))!;
-  const before = (await requests(agentId)).length;
+  const before = (await requests(from)).length;
   await sms(from, body);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const list = await requests(agentId);
+    const list = await requests(from);
     if (list.length > before && list.at(-1)!.decision) return list.at(-1)!;
     await sleep(400);
   }
   throw new Error("no decision within timeout (is the sender enrolled? check the dashboard)");
-}
-
-const agentIds = new Map<string, string>();
-async function agentIdFor(phone: string): Promise<string | undefined> {
-  if (agentIds.has(phone)) return agentIds.get(phone);
-  const info = (await (await fetch(`${SERVICE_URL}/admin/info`, { headers: adminHeaders })).json()) as { agent_ids: { agent_id: string; channel: string }[] };
-  const match = info.agent_ids.find((a) => a.channel === "sms" && a.agent_id.endsWith(`:${phone}`));
-  if (!match) throw new Error(`${phone} isn't enrolled on the running gateway`);
-  const id = match.agent_id;
-  agentIds.set(phone, id);
-  return id;
 }
 
 async function mcp() {

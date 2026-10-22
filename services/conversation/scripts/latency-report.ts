@@ -54,5 +54,5 @@ for (const [agent, s] of groups) {
   console.log(`  message->decision  p50 ${fmt(pct(s.total, 50))}  p95 ${fmt(pct(s.total, 95))}  (n=${s.total.length})`);
   console.log(`  actions ${JSON.stringify(s.actions)}  decisions ${JSON.stringify(s.statuses)}`);
 }
-console.log(`\nRamp side POST /v1/requests  p50 ${fmt(pct(gateway, 50))}  p95 ${fmt(pct(gateway, 95))}  (n=${gateway.length})`);
+console.log(`\nGateway POST /v1/requests  p50 ${fmt(pct(gateway, 50))}  p95 ${fmt(pct(gateway, 95))}  (n=${gateway.length})`);
 console.log("Add the agent's own reply time (Instinct/Muse) from the phone recording to get end-to-end latency.");

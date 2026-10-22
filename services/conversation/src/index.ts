@@ -164,7 +164,14 @@ export function createConversationService(config: Config, overrides: Conversatio
   });
   app.get("/admin/requests", (req: Request, res: Response) => {
     if (!adminOnly(req, res)) return;
-    const agent = typeof req.query.agent_id === "string" ? req.query.agent_id : undefined;
+    // ?sender= takes an enrolled phone number or email and resolves it the way the channels do.
+    const sender = typeof req.query.sender === "string" ? req.query.sender : undefined;
+    const fromSender = sender ? (enrollment.findSmsSender(sender) ?? enrollment.findEmailSender(sender)) : undefined;
+    if (sender && !fromSender) {
+      res.status(404).json({ error: "sender not enrolled" });
+      return;
+    }
+    const agent = fromSender?.agent_id ?? (typeof req.query.agent_id === "string" ? req.query.agent_id : undefined);
     const list = (agent ? state.requestsFor(agent) : state.allRequests()).map((r) => ({ request: { ...r.request, transcript: undefined }, decision: r.decision, agent_id: r.agent_id, channel: r.channel, created_at: r.created_at }));
     res.json(list);
   });

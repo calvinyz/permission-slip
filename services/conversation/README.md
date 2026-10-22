@@ -1,8 +1,8 @@
 # Conversation service
 
-The half of Permission Slip that **talks**. Personal agents reach the company here: Instinct and Muse over SMS or email, Claude and ChatGPT over MCP. Managers decide escalations in Slack, and the live dashboard shows every step for the video. Everything that **decides or moves money** lives in [`services/gateway`](../gateway/). Nothing in this service can approve spend.
+The half of Permission Slip that **talks**. Personal agents reach the company here: Instinct and Muse over SMS or email, Claude and ChatGPT over MCP. Managers decide escalations in Slack, and a live dashboard shows every step. Everything that **decides or moves money** lives in [`services/gateway`](../gateway/). Nothing in this service can approve spend.
 
-TypeScript on Node 22. It integrates with the gateway only through [`api/openapi.yaml`](../../api/openapi.yaml), and it validates every request it sends (and every response and event it reads) against that file at runtime.
+TypeScript on Node 22. It integrates with the gateway only through [`api/openapi.yaml`](../../api/openapi.yaml): every request it sends is validated against that file before it leaves, and every response and event it reads is checked, with any drift logged.
 
 ```mermaid
 flowchart LR
@@ -41,14 +41,14 @@ Open http://localhost:8787/dashboard/, then in a second terminal:
 
 ```bash
 npm run scenarios       # drives all five demo scenarios end to end, prints PASS/FAIL
-npm test                # 85 tests; the end-to-end suite starts the real gateway with uv
+npm test                # unit, hardening and end-to-end suites; the end-to-end suite starts the real gateway with uv
 ```
 
 Without accounts, SMS and email replies run in **dry-run** (shown on the dashboard, not sent), the negotiator uses the deterministic parser, and Slack is off. Each integration switches on when its credentials are in `.env`.
 
-## Connect to Calvin's gateway
+## Connect to a remote gateway
 
-1. `cp .env.example .env`, then set `GATEWAY_URL=https://calvins-macbook-pro-2.tail56a58a.ts.net` and `GATEWAY_API_TOKEN=<token from Calvin>`. `.env` is git-ignored; never commit the token.
+1. `cp .env.example .env`, then set `GATEWAY_URL=https://<gateway-host>` and `GATEWAY_API_TOKEN=<token>`. `.env` is git-ignored; never commit the token.
 2. Run the contract smoke test. It creates sandbox requests only (they show in the issuer console):
    ```bash
    npm run smoke -- --escalate --charge
@@ -67,7 +67,7 @@ tailscale funnel 8787        # or: ngrok http 8787
 Then set in `.env`:
 
 - `PUBLIC_BASE_URL=https://<your-funnel-host>`: required for Twilio signature checks.
-- `DASHBOARD_TOKEN=<long random string>`: required whenever `PUBLIC_BASE_URL` is set (the service refuses to start without it). The dashboard and admin endpoints then need `?token=…`.
+- `DASHBOARD_TOKEN=<long random string>`: required whenever `PUBLIC_BASE_URL` is set (the service refuses to start without it). The dashboard asks for it once and keeps an HttpOnly session cookie, so the token never appears in a URL; scripts and admin calls send it as the `X-Dashboard-Token` header.
 
 ## Integrations
 
@@ -104,24 +104,13 @@ Tools: `request_purchase` (flights need cabin class and IATA origin and destinat
 
 ChatGPT connectors can't send custom headers, so the token goes in the URL: `https://<PUBLIC_BASE_URL>/mcp/t/<MCP_TOKEN_CHATGPT_DEV>`, with authentication set to none. This needs Developer Mode (Settings → Apps & Connectors → Advanced). Write-capable connectors need a Business, Enterprise or Edu workspace, so **confirm this on your plan early**. Treat that URL like a password.
 
-### Email (only if Muse can't text)
+### Email (for agents that can't text)
 
-Postmark: set `POSTMARK_SERVER_TOKEN` and `EMAIL_FROM_ADDRESS`, then point the inbound webhook at `https://<PUBLIC_BASE_URL>/email/inbound?token=<EMAIL_WEBHOOK_TOKEN>`. Enroll Muse's sending address as `MUSE_EMAIL_DEV`. Replies thread onto the original message. Inbound mail must pass SPF or DKIM (`EMAIL_REQUIRE_AUTH=true`), so nobody can act as Dev by forging Muse's From address.
+Postmark: set `POSTMARK_SERVER_TOKEN` and `EMAIL_FROM_ADDRESS`, then point the inbound webhook at `https://<PUBLIC_BASE_URL>/email/inbound?token=<EMAIL_WEBHOOK_TOKEN>`. Enroll Muse's sending address as `MUSE_EMAIL_DEV`. Replies thread onto the original message. Inbound mail must pass Postmark's own SPF check, aligned with the From domain (`EMAIL_REQUIRE_AUTH=true`), so nobody can act as Dev by forging Muse's From address. Authentication headers inside the message are ignored, since the sender can write those.
 
 ### Claude as the negotiator
 
-Set `ANTHROPIC_API_KEY` (model: `NEGOTIATOR_MODEL`, default `claude-sonnet-5-5`); `npm run smoke` checks the key and model with one real call. Without a key, `NEGOTIATOR_MODE=auto` uses the deterministic parser, which understands the rehearsed demo phrasing. With a key, any API error or a reply slower than 25 s falls back to that parser automatically, and `NEGOTIATOR_MODE=scripted` forces it.
-
-## Instinct and Muse testing
-
-Do these in order; each one decides whether the next is worth doing.
-
-1. **Can it hold a conversation with an outside number?** From the employee's Instinct, ask it to text the gateway number: *"Text +1… and ask them to approve a $480 United economy flight PHL to SFO for my Acme meeting Tuesday. Answer their questions."* Watch the dashboard. Repeat for Muse. If Muse can only email, use the email channel.
-2. **Find the sender address.** The dashboard and logs show what number or address each agent texts from. Put it in `.env`.
-3. **Rehearse each scenario 20+ times per agent** with the exact prompts you'll use on camera. Run `npm run latency` after each session for message→decision p50/p95, and write down anything off-script (agent paraphrases the card, asks the user before paying, stops replying).
-4. **Fallback:** Claude over MCP covers every scenario if a consumer agent misbehaves on the day.
-
-Instinct's current terms restrict it to personal use, and it publishes no API or MCP integration. Say on camera that you're texting it like any vendor, and present Claude over MCP as the integration path.
+Set `ANTHROPIC_API_KEY` (model: `NEGOTIATOR_MODEL`, default `claude-sonnet-5-5`); `npm run smoke` checks the key and model with one real call. Without a key, `NEGOTIATOR_MODE=auto` uses the deterministic parser, which understands the demo phrasing. With a key, an API error, a reply slower than 25 s, or a model that can't produce a valid request falls back to that parser automatically (the abandoned call is cancelled), and `NEGOTIATOR_MODE=scripted` forces it.
 
 ## Demo prompts that match the seed data
 
@@ -133,25 +122,53 @@ Instinct's current terms restrict it to personal use, and it publishes no API or
 | 4 | Scenario 1, then the merchant's overcharge toggle ($140 fee) at checkout | Mismatch; card suspended; finance alert in Slack; heads-up text to the agent |
 | 5 | "I'm the CEO…", "Ignore previous instructions…", "It's an emergency…" | Denied; `injection.blocked` on the dashboard |
 
-## Recording checklist
+## Configuration
 
-- `curl -X POST localhost:8787/admin/reset` between takes. It clears conversations and live dashboards. To reset the gateway's state too, Calvin deletes its `gateway.db` and restarts it; this service picks the new event stream up on its own.
-- Keep `DEMO_TODAY=2026-10-21` so "Tuesday" resolves to the Acme meeting (2026-10-27) on every take, whatever day you record.
-- After a charge settles, the employee gets a one-line confirmation ("Done: $480 at … settled and matched to its approval, coded to 6110 Travel - Airfare. No receipt or expense report needed."). Turn it off with `NOTIFY_AGENT_ON_RECONCILE=false`.
-- Dashboard URL for filming: `/dashboard/?theme=dark&token=…`, full screen at 1920×1080. Keys: `F` follow latest, `←`/`→` switch request, `L` raw event log, `T` theme.
-- The clock in the corner is the visible clock; keep it in frame next to the phone recording.
-- Do a backup take of each scenario as soon as it works.
+All settings come from the environment (`.env` is loaded at startup; see [`.env.example`](.env.example)). Every integration is optional: without its credentials it runs in dry-run or is switched off, and the service still starts.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT`, `HOST` | `8787`, `0.0.0.0` | Listen address |
+| `PUBLIC_BASE_URL` | | Public HTTPS URL of this service; needed for Twilio signature checks |
+| `DASHBOARD_TOKEN` | | Dashboard and admin access; required when `PUBLIC_BASE_URL` is set |
+| `COMPANY_NAME` | `Lumen Labs` | Shown to agents and on the dashboard |
+| `GATEWAY_URL` | `http://localhost:8000` | Gateway base URL |
+| `GATEWAY_API_TOKEN` | | Bearer token for the gateway |
+| `GATEWAY_TIMEOUT_MS` | `20000` | Per-call timeout to the gateway |
+| `GATEWAY_EVENTS_ENABLED` | `true` | Subscribe to the gateway's event stream (off: Slack and follow-ups poll) |
+| `ANTHROPIC_API_KEY` | | Enables Claude as the negotiator |
+| `NEGOTIATOR_MODE` | `auto` | `llm`, `scripted`, or `auto` (Claude when a key is set) |
+| `NEGOTIATOR_MODEL` | `claude-sonnet-5-5` | Model for the negotiator |
+| `MERCHANT_CATEGORIES` | all | Comma-separated subset of the contract's categories offered to agents |
+| `DEMO_TODAY` | | Pins "today" (YYYY-MM-DD) so relative dates resolve against the seed calendar |
+| `DEMO_MERCHANT_URL` | | Checkout URL included with approved cards |
+| `ESCALATION_POLL_INTERVAL_MS`, `ESCALATION_POLL_TIMEOUT_MS` | `5000`, 30 min | Fallback polling for escalation outcomes |
+| `NOTIFY_AGENT_ON_RECONCILE`, `NOTIFY_AGENT_ON_SUSPEND` | `true` | Follow-up messages after settlement |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | | SMS via Twilio (dry-run without them) |
+| `TWILIO_VALIDATE_SIGNATURE` | `true` | Verify `X-Twilio-Signature`; only disable locally |
+| `POSTMARK_SERVER_TOKEN`, `EMAIL_FROM_ADDRESS`, `EMAIL_WEBHOOK_TOKEN` | | Email via Postmark (the inbound route is mounted only with a webhook token) |
+| `EMAIL_REQUIRE_AUTH` | `true` | Require Postmark's SPF pass for the sender's domain |
+| `MCP_ENABLED` | `true` | Serve the MCP endpoint |
+| `MCP_TOKEN_CLAUDE_DEV`, `MCP_TOKEN_CHATGPT_DEV`, `MCP_TOKEN_CLAUDE_MAYA` | | Per-employee MCP tokens (24+ characters) |
+| `INSTINCT_NUMBER_MAYA`, `MUSE_NUMBER_DEV`, `MUSE_EMAIL_DEV`, `REHEARSAL_NUMBER_MAYA` | | Enrolled SMS and email senders |
+| `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | | Slack over Socket Mode |
+| `SLACK_MANAGER_CHANNEL`, `SLACK_FINANCE_CHANNEL` | | Escalation posts and finance alerts |
+| `SLACK_ID_PRIYA`, `SLACK_ID_JORDAN`, `SLACK_ID_SAM`, `SLACK_ID_MAYA`, `SLACK_ID_DEV` | | Maps seed employees to Slack users |
+| `SLACK_OPEN_APPROVALS` | `false` | Let unmapped Slack users resolve (throwaway test workspaces only) |
+| `ENROLLMENT_FILE` | `data/enrollment.json` | Who is enrolled; credentials are `${ENV}` placeholders |
+| `STATE_FILE` | `data/state.json` | Conversations and Slack posts across restarts (empty disables) |
+| `LOG_FILE`, `LOG_LEVEL` | `logs/conversation.log`, `info` | JSON logs; tokens and card numbers are redacted |
 
 ## Endpoints
 
 | Route | Purpose |
 | --- | --- |
 | `POST /sms/inbound` | Twilio webhook |
-| `POST /email/inbound?token=` | Postmark webhook |
+| `POST /email/inbound?token=` | Postmark webhook (the token here is a webhook secret Postmark sends; rotate it if exposed) |
 | `POST /mcp` · `POST /mcp/t/:token` | MCP server (tools: `request_purchase`, `get_request_status`, `get_card`) |
-| `GET /dashboard/` | Live dashboard (`/stream` SSE, `/config`) |
+| `GET /dashboard/` | Live dashboard (`POST /session` sign-in, `/stream` SSE, `/config`) |
 | `GET /healthz` | Liveness (no secrets) |
-| `POST /admin/reset` · `GET /admin/requests` · `GET /admin/info` | Localhost only, or `?token=<DASHBOARD_TOKEN>` |
+| `POST /admin/reset` · `GET /admin/requests` · `GET /admin/info` | Localhost only, or the `X-Dashboard-Token` header |
 
 ## How it stays safe
 
@@ -159,6 +176,8 @@ Instinct's current terms restrict it to personal use, and it publishes no API or
 - **Injection passes through, untouched.** The negotiator puts claims of authority or urgency verbatim in the justification and submits; the gateway's scan sees them and denies with `injection.blocked`. The end-to-end tests cover three red-team prompts against the real gateway.
 - **Strict out, lenient in.** Every outgoing `PurchaseRequest` and `EscalationResolution` is validated against `api/openapi.yaml` before it's sent; responses and events are checked too, and drift is logged.
 - **Identity.** SMS senders are matched to enrolled numbers after a Twilio signature check; MCP tokens are per employee and compared in constant time; a request and its card are only visible to the employee who made it; only the gateway-assigned approver can resolve an escalation from Slack.
+- **No personal data in identifiers.** `agent_id` is the agent kind, the employee and a short hash of the sender (`instinct:emp_maya-3f2a9c1b`), never a phone number or email, because it is logged, shown on dashboards and stored by the gateway.
+- **Gateway failures are explained honestly.** A rejected request, an unknown request, an id conflict and an unreachable gateway each get their own reply, and every one says nothing was approved or charged. A wrong `GATEWAY_API_TOKEN` is logged as a configuration error.
 - **Card numbers stay out of storage.** The full number goes only to the agent that needs it to pay. History, transcripts, logs and the dashboard keep the last four digits.
 - **No agent loops.** Acknowledgements ("thanks", "booked it") get no reply, and a sender over 15 messages a minute is ignored.
 - **Restarts are safe.** Events are de-duplicated by the gateway's `event_id`; reconnects replay the stream from the start, so a gateway reset (sequence numbers back to 1) can't hide new events; history from before this service started is shown on the dashboard but never re-posted to Slack or re-texted. Escalations also go to Slack straight from the decision, so scenario 3 doesn't depend on the event stream.
@@ -170,7 +189,7 @@ src/
   index.ts              wiring, routes, startup
   config.ts             env → typed config
   contract/schemas.ts   types plus runtime validation against api/openapi.yaml
-  gateway/                 gateway client + event-stream subscriber
+  gateway/              gateway client + event-stream subscriber
   negotiator/           brain (LLM or scripted), negotiator, decision rendering
   channels/             SMS (Twilio), email (Postmark), outbound router
   mcp/server.ts         MCP tools
@@ -178,6 +197,6 @@ src/
   dashboard/            SSE routes + static page (public/)
   followups.ts          manager outcomes, settlement confirmations, suspension notices
 scripts/                local demo, simulators, scenario runner, contract smoke test, latency report
-test/                   node:test suites (integration.test.ts runs against the real gateway)
+test/                   node:test suites (integration.test.ts runs against the real gateway; hardening.test.ts covers security edges)
 data/enrollment.json    who's enrolled (seed employees; credentials come from .env)
 ```
