@@ -52,6 +52,36 @@ const person = (id) => (id && employees[id]) || id || "";
 const resultIcon = (c) => (c === "pass" ? "✓" : c === "fail" ? "✕" : c === "warn" ? "!" : "·");
 const CHANNEL = { sms: "SMS", mcp: "MCP", email: "Email" };
 
+// Line icons (Lucide, ISC licence), drawn with currentColor.
+const ICONS = {
+  airlines: "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z",
+  lodging: "M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9",
+  conferences: "M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2ZM13 5v2M13 17v2M13 11v2",
+  ground_transport: "M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3M7 18h7M9 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
+  meals: "M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7",
+  card: "M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 10h20",
+  inbox: "M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+  check: "M20 6 9 17l-5-5",
+  shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4",
+  ledger: "M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1ZM16 8h-6M16 12H8M13 16H8",
+};
+function icon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", ICONS[name] || ICONS.card);
+  svg.append(path);
+  return svg;
+}
+const catIcon = (category) => (ICONS[category] ? category : "card");
+const BAD = new Set(["denied", "blocked", "suspended"]);
+
 // ---- clock ----
 function tick() {
   const now = new Date();
@@ -83,6 +113,7 @@ function setFollow(on) {
 function render() {
   const r = current();
   renderChips(r);
+  renderKpis();
   renderHead(r);
   renderSteps(r);
   renderConvo(r);
@@ -105,6 +136,7 @@ function renderChips(r) {
           return h(
             "button",
             { type: "button", class: "chip", "aria-current": x.id === r?.id ? "true" : "false", onclick: () => select(x.id), title: x.id },
+            h("span", { class: `cat${BAD.has(st) ? " alt" : ""}` }, icon(catIcon(req.merchant_category))),
             h("span", { class: "chip-m", text: req.merchant || x.id }),
             h("span", { class: "chip-a", text: money(req.amount_usd) }),
             h("small", { text: [who, time(x.firstTs)].filter(Boolean).join(", ") }),
@@ -115,6 +147,27 @@ function renderChips(r) {
   );
 }
 
+function renderKpis() {
+  const list = orderedRequests(model);
+  const by = (pred) => list.filter((x) => pred(chipStatus(x), x));
+  const approved = by((st) => ["approved", "used", "suspended"].includes(st));
+  const stopped = by((st) => ["blocked", "denied"].includes(st));
+  const injections = by((st) => st === "blocked");
+  const txns = list.flatMap((x) => x.txns || []);
+  const coded = txns.filter((t) => t.state === "reconciled");
+  const mismatches = txns.filter((t) => t.state === "mismatch");
+  const agents = new Set(list.map((x) => x.agent_id).filter(Boolean));
+  const sum = (xs, f) => xs.reduce((a, x) => a + (Number(f(x)) || 0), 0);
+  const tile = (ic, label, value, note, dark) =>
+    h("div", { class: "kpi" }, h("span", { class: `cat${dark ? " dark" : ""}` }, icon(ic)), h("span", { text: label }), h("b", { text: value }), h("small", {}, ...note));
+  $("kpis").replaceChildren(
+    tile("inbox", "Requests", String(list.length), [`from ${agents.size} agent${agents.size === 1 ? "" : "s"}`]),
+    tile("check", "Approved spend", money(sum(approved, (x) => x.request?.amount_usd)) || "$0.00", [h("em", { text: String(approved.length) }), ` request${approved.length === 1 ? "" : "s"} approved`], true),
+    tile("shield", "Stopped", String(stopped.length), [h("em", { class: injections.length ? "bad" : "", text: String(injections.length) }), ` injection attempt${injections.length === 1 ? "" : "s"} blocked`]),
+    tile("ledger", "Settled and coded", money(sum(coded, (t) => t.amount)) || "$0.00", mismatches.length ? [h("em", { class: "bad", text: String(mismatches.length) }), ` mismatch${mismatches.length === 1 ? "" : "es"} caught`] : ["no receipts needed"]),
+  );
+}
+
 function renderHead(r) {
   if (!r) {
     $("rq-title").textContent = "No requests yet";
@@ -122,6 +175,7 @@ function renderHead(r) {
     $("rq-meta").textContent = "";
     $("rq-amount").textContent = "";
     $("rq-status").replaceChildren();
+    $("rq-icon").replaceChildren();
     return;
   }
   const req = r.request || {};
@@ -129,6 +183,7 @@ function renderHead(r) {
   const employee = r.employee || person(req.employee_id);
   const via = agent ? `${agent.label}${CHANNEL[r.channel] ? ` over ${CHANNEL[r.channel]}` : ""}` : CHANNEL[r.channel] || "";
   $("rq-title").textContent = req.merchant || r.id;
+  $("rq-icon").replaceChildren(icon(catIcon(req.merchant_category)));
   $("rq-desc").textContent = req.description || "";
   $("rq-meta").textContent = [employee ? `For ${employee}` : "", via ? `requested by ${via}` : "", r.firstTs ? `at ${time(r.firstTs)}` : ""].filter(Boolean).join(", ").replace(/^requested/, "Requested");
   $("rq-amount").textContent = money(req.amount_usd);
@@ -169,11 +224,17 @@ function renderConvo(r) {
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   // Messages tied to a different request are dimmed so the selected request's exchange stands out.
   const other = (m) => Boolean(r && m.request_id && m.request_id !== r.id);
+  const initial = (agent?.label || "A").trim()[0].toUpperCase();
   box.replaceChildren(
-    ...msgs.flatMap((m) => [
-      h("div", { class: `msg-meta ${m.dir}${other(m) ? " other" : ""}` }, h("span", { text: m.dir === "in" ? agent?.label || "Agent" : "Permission Slip" }), h("span", { text: time(m.ts) }), m.dry_run ? h("span", { class: "warn", text: "not sent (dry run)" }) : null, m.delivered ? null : h("span", { class: "warn", text: "delivery failed" })),
-      h("div", { class: `msg ${m.dir}${m.kind === "followup" ? " followup" : ""}${other(m) ? " other" : ""}`, text: m.text }),
-    ]),
+    ...msgs.map((m) =>
+      h(
+        "div",
+        { class: `turn ${m.dir}${other(m) ? " other" : ""}` },
+        m.dir === "in" ? h("span", { class: "avatar", text: initial }) : null,
+        h("div", { class: "msg-meta" }, h("span", { text: m.dir === "in" ? agent?.label || "Agent" : "Permission Slip" }), h("span", { text: time(m.ts) }), m.dry_run ? h("span", { class: "warn", text: "dry run" }) : null, m.delivered ? null : h("span", { class: "warn", text: "delivery failed" })),
+        h("div", { class: `msg ${m.dir}${m.kind === "followup" ? " followup" : ""}`, text: m.text }),
+      ),
+    ),
   );
   if (atBottom || follow) box.scrollTop = box.scrollHeight;
 }
@@ -238,6 +299,7 @@ function renderCard(r) {
         "div",
         { class: `vcard ${state}` },
         h("div", { class: "vcard-top" }, h("span", { text: "Single-use card" }), h("span", { class: "vcard-state", text: state[0].toUpperCase() + state.slice(1) })),
+        h("span", { class: "vcard-chip", "aria-hidden": "true" }),
         h("div", { class: "vcard-num", text: `•••• •••• •••• ${card.last4 || (card.card_id || "").slice(-4)}` }),
         h("div", { class: "vcard-bot" }, h("div", {}, "Limit", h("b", { text: money(card.limit_usd) || "—" })), h("div", {}, "Locked to", h("b", { text: card.merchant_lock || "—" })), h("div", {}, "Expires", h("b", { text: card.expires_at ? when(card.expires_at) : "—" }))),
       )
@@ -245,8 +307,6 @@ function renderCard(r) {
   const sig = mandate && (mandate.signature || mandate.sig);
   const rows = [
     ["Mandate", mandate?.mandate_id || mandate?.id],
-    ["Employee", mandate?.employee_id || r?.request?.employee_id],
-    ["Agent", mandate?.agent_id || r?.agent_id],
     ["Max", typeof mandate?.max_amount_usd === "number" ? money(mandate.max_amount_usd) : typeof mandate?.amount_usd === "number" ? money(mandate.amount_usd) : undefined],
     ["Policy", mandate?.policy_version],
     ["Approved by", mandate?.approved_by ? person(mandate.approved_by) : undefined],
@@ -254,7 +314,7 @@ function renderCard(r) {
     ["Key", mandate?.key_id],
     ["Card ID", card?.card_id],
   ].filter(([, v]) => v);
-  const IDS = new Set(["Mandate", "Agent", "Key", "Card ID"]);
+  const IDS = new Set(["Mandate", "Key", "Card ID"]);
   const kv = h("dl", { class: "kv" }, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { class: IDS.has(k) ? "id" : undefined, text: String(v) })]), sig ? [h("dt", { text: "Signature" }), h("dd", { class: "sig", text: `${String(sig).slice(0, 18)}… verified` })] : []);
   const extra = card?.state === "suspended" ? h("div", { class: "callout bad" }, h("b", { text: "Card suspended" }), humanize(card.suspendedReason) || "Settlement didn't match the mandate.") : null;
   box.replaceChildren(h("div", {}, vcard), h("div", {}, kv, extra));
