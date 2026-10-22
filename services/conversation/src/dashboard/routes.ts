@@ -19,6 +19,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { EventBus } from "../bus.ts";
 import type { GatewayEvent } from "../contract/schemas.ts";
 import { maskCardNumbers } from "../negotiator/render.ts";
+import type { Presenter } from "../presenter.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(here, "public");
@@ -28,6 +29,10 @@ export interface DashboardOptions {
   bus: EventBus;
   token?: string;
   info: () => Record<string, unknown>;
+  /** Presenter mode (DEMO_PRESENTER=true): step through the demo script from the dashboard. */
+  presenter?: Presenter;
+  /** Clears conversations and the live view, for a fresh take. */
+  reset?: () => void;
 }
 
 const SESSION_COOKIE = "ps_dashboard";
@@ -118,7 +123,24 @@ export function dashboardRouter(opts: DashboardOptions): Router {
     res.type(TYPES[ext] ?? "text/plain").set("Cache-Control", "no-store").send(readFileSync(join(PUBLIC_DIR, name), "utf8"));
   });
 
-  router.get("/config", guard, (_req, res) => res.json(opts.info()));
+  router.get("/config", guard, (_req, res) => res.json({ ...opts.info(), presenter: opts.presenter?.status() ?? null }));
+
+  if (opts.presenter) {
+    const presenter = opts.presenter;
+    router.post("/presenter/next", guard, async (_req, res) => {
+      try {
+        const status = await presenter.next();
+        res.status(status ? 200 : 409).json(status ?? presenter.status());
+      } catch (err) {
+        res.status(502).json({ error: (err as Error).message, ...presenter.status() });
+      }
+    });
+    router.post("/presenter/reset", guard, (_req, res) => {
+      presenter.reset();
+      opts.reset?.();
+      res.json(presenter.status());
+    });
+  }
 
   router.get("/stream", guard, (req, res) => {
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });

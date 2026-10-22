@@ -37,7 +37,6 @@ const when = (iso) => {
   return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: TZ });
 };
 /** The gateway's mismatch reasons name contract fields; read them naturally. */
-const humanize = (text) => String(text || "").replace(/\bamount_usd\b/g, "amount").replace(/\bmerchant_category\b/g, "merchant category").replace(/\btime_window\b/g, "time window");
 const delta = (from, to) => {
   if (!from || !to) return "";
   // Clamp: the two laptops' clocks can differ slightly, and negative steps look broken on video.
@@ -314,7 +313,7 @@ function renderCard(r) {
   ].filter(([, v]) => v);
   const IDS = new Set(["Mandate", "Key", "Card ID"]);
   const kv = h("dl", { class: "kv" }, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { class: IDS.has(k) ? "id" : undefined, text: String(v) })]), sig ? [h("dt", { text: "Signature" }), h("dd", { class: "sig", text: `${String(sig).slice(0, 18)}… verified` })] : []);
-  const extra = card?.state === "suspended" ? h("div", { class: "callout bad" }, h("b", { text: "Card suspended" }), humanize(card.suspendedReason) || "Settlement didn't match the mandate.") : null;
+  const extra = card?.state === "suspended" ? h("div", { class: "callout bad" }, h("b", { text: "Card frozen" }), "Charge didn't match.") : null;
   box.replaceChildren(h("div", {}, vcard), h("div", {}, kv, extra));
 }
 
@@ -347,14 +346,14 @@ function renderTxn(r) {
         "div",
         { class: `txn ${t.state}` },
         h("div", { class: "txn-top" }, h("span", { class: "txn-amt", text: money(t.amount) }), h("span", { class: `pill ${t.state}`, text: t.state })),
+        t.state === "mismatch" ? h("div", { class: "callout bad" }, h("b", { text: "Mismatch caught" }), `Charged ${money(t.amount)} against a ${money(t.expected ?? limit)} approval. Card frozen; finance alerted${slackOn ? " in Slack" : ""}.`) : null,
         h("div", { class: "muted", text: [t.merchant, t.ts ? `settled at ${time(t.ts)}` : ""].filter(Boolean).join(", ") }),
         typeof limit === "number" ? h("div", {}, h("div", { class: `meter${over ? " over" : ""}` }, h("i", { style: `width:${pct}%` })), h("div", { class: "meter-l" }, h("span", { text: `Charged ${money(t.amount)}` }), h("span", { text: `Mandate max ${money(limit)}` }))) : null,
-        t.state === "mismatch" ? h("div", { class: "callout bad" }, h("b", { text: "Mismatch" }), `${(t.reason || `Charged ${money(t.amount)} against ${money(t.expected ?? limit)}`).replace(/[.\s]*$/, "")}. Card auto-suspended; finance alerted in Slack.`) : null,
-        Array.isArray(t.match) && t.match.length
-          ? h("ul", { class: "checks" }, ...t.match.map((c) => { const cls = resultClass(c.result); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("span", { text: c.field.replace(/_/g, " ") }), h("small", { text: c.field === "time_window" ? `settled ${time(c.actual)}` : `expected ${c.expected}, got ${c.actual}` })), h("span", { class: `pill ${cls}`, text: c.result })); }))
-          : null,
         t.state === "reconciled"
           ? h("div", {}, h("p", { class: "sub", text: "Auto-coded" }), h("dl", { class: "kv" }, ...[["GL account", coding.gl_account || coding.gl], ["Department", coding.department || coding.dept], ["Memo", coding.memo]].filter(([, v]) => v).flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: String(v) })])), h("div", { class: "callout good" }, h("b", { text: "No expense report" }), "Matched to its mandate and coded automatically."))
+          : null,
+        Array.isArray(t.match) && t.match.length
+          ? h("ul", { class: "checks" }, ...t.match.map((c) => { const cls = resultClass(c.result); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("span", { text: c.field.replace(/_/g, " ") }), h("small", { text: c.field === "time_window" ? `settled ${time(c.actual)}` : `expected ${c.expected}, got ${c.actual}` })), h("span", { class: `pill ${cls}`, text: c.result })); }))
           : null,
       );
     }),
@@ -388,7 +387,10 @@ document.addEventListener("keydown", (ev) => {
   else if (ev.key === "t" || ev.key === "T") {
     const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.theme = dark ? "light" : "dark";
-  } else if (ev.key === "ArrowLeft" && idx > 0) select(list[idx - 1].id);
+  } else if ((ev.key === "n" || ev.key === "N") && !ev.shiftKey && presenter) presenterNext();
+  else if (ev.key === "R" && ev.shiftKey && presenter) presenterReset();
+  else if ((ev.key === "p" || ev.key === "P") && presenter) togglePresenter();
+  else if (ev.key === "ArrowLeft" && idx > 0) select(list[idx - 1].id);
   else if (ev.key === "ArrowRight" && idx >= 0 && idx < list.length - 1) select(list[idx + 1].id);
 });
 
@@ -401,6 +403,11 @@ async function loadConfig() {
     $("brain").textContent = cfg.negotiator ? (cfg.negotiator === "scripted" ? "Scripted negotiator" : "Claude negotiator") : "";
     $("conn-gateway").dataset.state = cfg.gateway_events_connected ? "up" : "down";
     $("conn-gateway").title = cfg.gateway_url || "";
+    slackOn = Boolean(cfg.channels?.slack);
+    if (cfg.presenter && !presenterBusy) {
+      presenter = cfg.presenter;
+      renderPresenter();
+    }
   } catch {
     $("conn-gateway").dataset.state = "down";
   }
@@ -434,6 +441,87 @@ function connect() {
     scheduleRender();
   });
 }
+// ---- presenter ----
+// With DEMO_PRESENTER=true, N plays the next step of the demo script through the real pipeline.
+// P shows the step list (hidden by default, so it stays off camera); Shift+R resets for a new take.
+let presenter = null;
+let slackOn = false;
+let presenterBusy = false;
+let presenterError = "";
+
+function presenterPanel() {
+  let panel = $("presenter");
+  if (!panel) {
+    panel = document.createElement("aside");
+    panel.id = "presenter";
+    panel.className = "presenter";
+    panel.hidden = true;
+    panel.setAttribute("aria-label", "Presenter steps");
+    document.body.append(panel);
+  }
+  return panel;
+}
+
+function renderPresenter() {
+  if (!presenter) return;
+  const panel = presenterPanel();
+  panel.replaceChildren();
+  const h = document.createElement("h2");
+  h.textContent = `Presenter · ${Math.min(presenter.next + 1, presenter.steps.length)} of ${presenter.steps.length}`;
+  const ol = document.createElement("ol");
+  presenter.steps.forEach((step, i) => {
+    const li = document.createElement("li");
+    li.textContent = step.label;
+    li.className = step.done ? "done" : i === presenter.next ? (presenterBusy ? "running" : "next") : "";
+    ol.append(li);
+  });
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent = presenter.next >= presenter.steps.length ? "Script finished. Shift+R to reset." : "N next step · Shift+R reset · P hide";
+  panel.append(h, ol, hint);
+  if (presenterError) {
+    const err = document.createElement("p");
+    err.className = "error";
+    err.textContent = presenterError;
+    panel.append(err);
+  }
+}
+
+function togglePresenter() {
+  const panel = presenterPanel();
+  panel.hidden = !panel.hidden;
+  renderPresenter();
+}
+
+async function presenterNext() {
+  if (presenterBusy || presenter.next >= presenter.steps.length) return;
+  presenterBusy = true;
+  presenterError = "";
+  renderPresenter();
+  try {
+    const res = await fetch("presenter/next", { method: "POST" });
+    const body = await res.json();
+    presenter = { next: body.next, running: body.running, steps: body.steps };
+    if (res.status === 502) {
+      presenterError = body.error || "That step failed.";
+      presenterPanel().hidden = false;
+    }
+  } catch {
+    presenterError = "Couldn't reach the service.";
+    presenterPanel().hidden = false;
+  } finally {
+    presenterBusy = false;
+    renderPresenter();
+  }
+}
+
+async function presenterReset() {
+  presenterError = "";
+  const res = await fetch("presenter/reset", { method: "POST" }).catch(() => undefined);
+  if (res?.ok) presenter = await res.json();
+  renderPresenter();
+}
+
 // ---- access ----
 // With DASHBOARD_TOKEN set, the token is exchanged once for an HttpOnly session cookie.
 function showSignIn() {

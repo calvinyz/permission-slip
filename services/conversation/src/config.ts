@@ -52,6 +52,10 @@ const EnvSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => undefined)),
   DEMO_MERCHANT_URL: optionalString,
+  /** Let the signed-in dashboard step through the demo script (N key). Creates real gateway requests. */
+  DEMO_PRESENTER: bool(false),
+  /** Whose agent the presenter speaks as. */
+  DEMO_PRESENTER_EMPLOYEE: z.string().default("emp_maya"),
 
   // SMS (Twilio)
   TWILIO_ACCOUNT_SID: optionalString,

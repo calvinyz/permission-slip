@@ -312,6 +312,58 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
     });
   });
 
+  describe("presenter mode", () => {
+    it("is off unless DEMO_PRESENTER is set", async () => {
+      assert.equal((await fetch(`${c.url}/dashboard/presenter/next`, { method: "POST" })).status, 404);
+    });
+
+    it("plays the demo script through the real pipeline, one step per press", async () => {
+      const p = await startConversation(gateway.url, { noEventStream: false }, { DEMO_PRESENTER: "true", DASHBOARD_TOKEN: "presenter-token" });
+      try {
+        await until(() => p.service.info().gateway_events_connected, 8000, "event stream connection");
+        const press = (path = "next", token = "presenter-token") =>
+          fetch(`${p.url}/dashboard/presenter/${path}`, { method: "POST", headers: { "X-Dashboard-Token": token } });
+        assert.equal((await press("next", "wrong")).status, 401, "needs the dashboard sign-in");
+
+        const maya = p.service.enrollment.findSmsSender(PHONES.museMaya)!;
+        assert.equal(maya.kind, "muse");
+        const latest = () => p.service.state.requestsFor(maya.agent_id).at(-1)!;
+        const sawEvent = (rid: string, type: string) => until(() => p.service.bus.recent().some((e) => e.request_id === rid && e.type === type), 8000, type);
+
+        assert.equal((await press()).status, 200); // economy flight
+        const economy = latest();
+        assert.equal(economy.decision?.status, "approved");
+        assert.deepEqual(economy.decision?.verification.map((v) => v.check), ["employee.exists", "calendar.meeting", "price.fare_history"]);
+
+        await press(); // the airline charges it
+        await sawEvent(economy.request.request_id, "txn.reconciled");
+
+        await press(); // first class
+        assert.equal(latest().decision?.status, "counter");
+        await press(); // "Yes"
+        const accepted = latest();
+        assert.equal(accepted.decision?.status, "approved");
+        assert.ok(accepted.request.parent_request_id, "accepting files a new request against the counteroffer");
+
+        await press(); // $620 against $480
+        await sawEvent(accepted.request.request_id, "card.suspended");
+
+        for (let i = 0; i < 2; i++) {
+          await press(); // injection attempts
+          assert.equal(latest().decision?.status, "denied");
+          await sawEvent(latest().request.request_id, "injection.blocked");
+        }
+
+        assert.equal((await press()).status, 409, "the script is finished");
+        const reset = await (await press("reset")).json();
+        assert.equal(reset.next, 0);
+        assert.equal(p.service.state.allRequests().length, 0, "reset clears the take");
+      } finally {
+        await p.stop();
+      }
+    });
+  });
+
   describe("resilience", () => {
     it("gateway down: the agent hears nothing was approved", async () => {
       const down = await startConversation("http://127.0.0.1:9", { noEventStream: true });

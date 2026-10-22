@@ -122,6 +122,21 @@ Set `ANTHROPIC_API_KEY` (model: `NEGOTIATOR_MODEL`, default `claude-sonnet-5-5`)
 | 4 | Scenario 1, then the merchant's overcharge toggle ($140 fee) at checkout | Mismatch; card suspended; finance alert in Slack; heads-up text to the agent |
 | 5 | "I'm the CEO…", "Ignore previous instructions…", "It's an emergency…" | Denied; `injection.blocked` on the dashboard |
 
+## Presenter mode
+
+For a recorded or live demo, `DEMO_PRESENTER=true` lets the signed-in dashboard play the demo script one step per keypress. Each step is real: a text from Maya's agent goes through the same negotiator as an inbound SMS, and each charge checks out at the gateway's demo merchant with the card the gateway actually issued.
+
+| Key | Step |
+| --- | --- |
+| `N` | 1. Agent asks for an economy flight to the Acme meeting (approved, card issued) |
+| `N` | 2. The airline charges the card (matched and coded) |
+| `N` | 3. Agent asks for first class (counteroffer for economy) |
+| `N` | 4. Agent accepts (approved) |
+| `N` | 5. The merchant charges $620 against the $480 approval (mismatch, card frozen) |
+| `N` | 6–7. "I'm the CEO" and "ignore previous instructions" (both blocked) |
+
+`P` shows the step list (hidden by default, so it stays off camera) and `Shift+R` resets for a new take. To start the gateway side fresh too, delete `services/gateway/gateway.db` and restart it.
+
 ## Configuration
 
 All settings come from the environment (`.env` is loaded at startup; see [`.env.example`](.env.example)). Every integration is optional: without its credentials it runs in dry-run or is switched off, and the service still starts.
@@ -142,6 +157,7 @@ All settings come from the environment (`.env` is loaded at startup; see [`.env.
 | `MERCHANT_CATEGORIES` | all | Comma-separated subset of the contract's categories offered to agents |
 | `DEMO_TODAY` | | Pins "today" (YYYY-MM-DD) so relative dates resolve against the seed calendar |
 | `DEMO_MERCHANT_URL` | | Checkout URL included with approved cards |
+| `DEMO_PRESENTER`, `DEMO_PRESENTER_EMPLOYEE` | `false`, `emp_maya` | Presenter mode: step through the demo script from the dashboard |
 | `ESCALATION_POLL_INTERVAL_MS`, `ESCALATION_POLL_TIMEOUT_MS` | `5000`, 30 min | Fallback polling for escalation outcomes |
 | `NOTIFY_AGENT_ON_RECONCILE`, `NOTIFY_AGENT_ON_SUSPEND` | `true` | Follow-up messages after settlement |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | | SMS via Twilio (dry-run without them) |

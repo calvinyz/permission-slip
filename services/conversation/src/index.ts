@@ -23,6 +23,7 @@ import { OutboundRouter, PostmarkEmailSender, type EmailSender, type SmsSender, 
 import { smsRouter } from "./channels/sms.ts";
 import { emailRouter } from "./channels/email.ts";
 import { dashboardRouter, tokenMatches } from "./dashboard/routes.ts";
+import { Presenter } from "./presenter.ts";
 import { Followups } from "./followups.ts";
 import { mcpRouter } from "./mcp/server.ts";
 import type { Brain } from "./negotiator/brain.ts";
@@ -141,7 +142,13 @@ export function createConversationService(config: Config, overrides: Conversatio
   app.use("/sms", smsRouter({ enrollment, negotiator, outbound, log, company: config.COMPANY_NAME, authToken: config.TWILIO_AUTH_TOKEN, validateSignature: config.TWILIO_VALIDATE_SIGNATURE, publicBaseUrl: config.PUBLIC_BASE_URL }));
   if (config.EMAIL_WEBHOOK_TOKEN) app.use("/email", emailRouter({ enrollment, negotiator, outbound, state, log, webhookToken: config.EMAIL_WEBHOOK_TOKEN, requireAuth: config.EMAIL_REQUIRE_AUTH }));
   if (config.MCP_ENABLED) app.use("/mcp", mcpRouter({ enrollment, requests, state, bus, log, merchantCategories: config.merchantCategories, render, serverVersion: VERSION }));
-  app.use("/dashboard", dashboardRouter({ bus, token: config.DASHBOARD_TOKEN, info }));
+  const presenter = config.DEMO_PRESENTER
+    ? new Presenter({ enrollment, negotiator, outbound, state, gateway, gatewayUrl: config.GATEWAY_URL, employeeId: config.DEMO_PRESENTER_EMPLOYEE, log })
+    : undefined;
+  app.use("/dashboard", dashboardRouter({ bus, token: config.DASHBOARD_TOKEN, info, presenter, reset: () => {
+    state.resetAll();
+    bus.clear();
+  } }));
   // Admin endpoints for scripts and between demo takes: localhost only, or the X-Dashboard-Token header.
   const adminOnly = (req: Request, res: Response): boolean => {
     // A tunnel (Tailscale Funnel, ngrok) connects from localhost, so a forwarded request is never "local".

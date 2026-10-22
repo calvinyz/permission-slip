@@ -254,3 +254,15 @@ kbd:first-child { margin-left: 0; }
 .signin input { width: min(360px, calc(100vw - 32px)); padding: 10px 12px; border: 1px solid var(--line2); border-radius: var(--r-item); background: var(--surface); color: var(--ink); font: inherit; }
 .signin button { padding: 10px 12px; border: 0; border-radius: var(--r-item); background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; cursor: pointer; }
 .signin p { min-height: 1.4em; margin: 0; color: var(--bad); font-size: 13px; }
+
+/* Presenter step list (DEMO_PRESENTER=true; toggled with P, hidden by default). */
+.presenter[hidden] { display: none; }
+.presenter { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: min(340px, calc(100vw - 32px)); padding: 14px 16px; border-radius: var(--r-item); background: var(--side); color: var(--side-ink); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); font-size: 13px; }
+.presenter h2 { margin: 0 0 8px; font-size: 13px; font-weight: 800; }
+.presenter ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.presenter li { color: var(--side-muted); }
+.presenter li.done { text-decoration: line-through; }
+.presenter li.next, .presenter li.running { color: var(--accent); font-weight: 700; }
+.presenter li.running::after { content: " …"; }
+.presenter .hint { margin: 10px 0 0; color: var(--side-muted); }
+.presenter .error { margin: 8px 0 0; color: #F2766C; }
