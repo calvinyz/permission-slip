@@ -95,7 +95,7 @@ export function renderEscalationOutcome(decision: Decision, opts: RenderOptions 
   return renderDecision(decision, opts, details);
 }
 
-/** Spec flow step 7: the employee's confirmation once the charge is matched and coded. */
+/** The employee's confirmation once the charge is matched and coded. */
 export function renderReconciled(txn: Partial<Transaction>, fallbackMerchant?: string): string {
   const merchant = txn.merchant || fallbackMerchant;
   const what = [money(txn.amount_usd), merchant ? `at ${merchant}` : undefined].filter(Boolean).join(" ") || "Your purchase";

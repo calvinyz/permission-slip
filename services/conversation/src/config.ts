@@ -26,7 +26,7 @@ const EnvSchema = z.object({
   PUBLIC_BASE_URL: optionalString,
   COMPANY_NAME: z.string().default("Lumen Labs"),
 
-  // Gateway (services/gateway). RAMP_API_URL / RAMP_API_TOKEN are accepted as older aliases.
+  // Gateway (services/gateway).
   GATEWAY_URL: z.string().url().default("http://localhost:8000"),
   GATEWAY_API_TOKEN: optionalString,
   GATEWAY_TIMEOUT_MS: z.coerce.number().int().min(1000).default(20000),
@@ -120,9 +120,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid configuration:\n${issues}`);
   }
   const env = parsed.data;
-  // Older names from the first draft of the spec.
-  if (!source.GATEWAY_URL && source.RAMP_API_URL) env.GATEWAY_URL = source.RAMP_API_URL;
-  if (!source.GATEWAY_API_TOKEN && source.RAMP_API_TOKEN) env.GATEWAY_API_TOKEN = source.RAMP_API_TOKEN;
   const merchantCategories = env.MERCHANT_CATEGORIES
     ? env.MERCHANT_CATEGORIES.split(",").map((s) => s.trim()).filter(Boolean)
     : [...MERCHANT_CATEGORIES];

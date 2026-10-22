@@ -1,6 +1,6 @@
 // Dashboard state model: folds the event stream into per-request state.
 // Pure functions, no DOM, so test/dashboard-model.test.ts can run them in Node.
-// Ramp-side payload shapes are read defensively: the spec names the events but not every field.
+// Payloads are read defensively, so the dashboard keeps working if optional fields are absent.
 
 export const STEPS = [
   { key: "received", label: "Received", types: ["agent.request.submitted", "request.received"] },

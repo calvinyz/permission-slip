@@ -7,7 +7,7 @@ import { type CardDetails, type Contract, contract as sharedContract, type Decis
 import type { Logger } from "../logger.ts";
 import { silentLogger } from "../logger.ts";
 
-export class RampApiError extends Error {
+export class GatewayApiError extends Error {
   constructor(
     message: string,
     readonly status: number | undefined,
@@ -15,11 +15,11 @@ export class RampApiError extends Error {
     readonly code?: string,
   ) {
     super(message);
-    this.name = "RampApiError";
+    this.name = "GatewayApiError";
   }
 }
 
-export interface RampClientOptions {
+export interface GatewayClientOptions {
   baseUrl: string;
   token?: string;
   timeoutMs?: number;
@@ -29,7 +29,7 @@ export interface RampClientOptions {
   contract?: Contract;
 }
 
-export interface RampApi {
+export interface GatewayApi {
   readonly baseUrl: string;
   submitRequest(request: PurchaseRequest): Promise<Decision>;
   getRequest(requestId: string): Promise<Decision>;
@@ -45,7 +45,7 @@ function errorInfo(body: unknown): { code?: string; message?: string } {
   return { code: e?.code, message: e?.message };
 }
 
-export class RampClient implements RampApi {
+export class GatewayClient implements GatewayApi {
   readonly baseUrl: string;
   private readonly token?: string;
   private readonly timeoutMs: number;
@@ -54,7 +54,7 @@ export class RampClient implements RampApi {
   private readonly fetchImpl: typeof fetch;
   private readonly contract: Contract;
 
-  constructor(opts: RampClientOptions) {
+  constructor(opts: GatewayClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.token = opts.token;
     this.timeoutMs = opts.timeoutMs ?? 20_000;
@@ -83,11 +83,11 @@ export class RampClient implements RampApi {
       // request_id is the idempotency key, so retrying the same body is safe.
       const raw = await this.call("POST", "/v1/requests", request, { idempotent: true });
       const decision = this.check<Decision>("Decision", raw, "POST /v1/requests");
-      this.log.info("ramp: decision", { request_id: request.request_id, status: decision.status, ms: Date.now() - started });
+      this.log.info("gateway: decision", { request_id: request.request_id, status: decision.status, ms: Date.now() - started });
       return decision;
     } catch (err) {
-      if (err instanceof RampApiError && err.status === 409) {
-        this.log.warn("ramp: request_id conflict, fetching its decision", { request_id: request.request_id });
+      if (err instanceof GatewayApiError && err.status === 409) {
+        this.log.warn("gateway: request_id conflict, fetching its decision", { request_id: request.request_id });
         return this.getRequest(request.request_id);
       }
       throw err;
@@ -132,16 +132,16 @@ export class RampClient implements RampApi {
         }
         if (res.ok) return parsed;
         const info = errorInfo(parsed);
-        const err = new RampApiError(`${method} ${path} failed with HTTP ${res.status}${info.message ? `: ${info.message}` : ""}`, res.status, parsed, info.code);
+        const err = new GatewayApiError(`${method} ${path} failed with HTTP ${res.status}${info.message ? `: ${info.message}` : ""}`, res.status, parsed, info.code);
         if (res.status >= 500 || res.status === 429) lastError = err;
         else throw err;
       } catch (err) {
-        if (err instanceof RampApiError && err.status !== undefined && err.status < 500 && err.status !== 429) throw err;
-        lastError = err instanceof RampApiError ? err : new RampApiError(`${method} ${path} failed: ${(err as Error).message}`, undefined, undefined);
+        if (err instanceof GatewayApiError && err.status !== undefined && err.status < 500 && err.status !== 429) throw err;
+        lastError = err instanceof GatewayApiError ? err : new GatewayApiError(`${method} ${path} failed: ${(err as Error).message}`, undefined, undefined);
       }
       if (attempt < attempts) {
         const delay = 300 * 2 ** (attempt - 1);
-        this.log.warn("ramp: retrying", { method, path, attempt, delay_ms: delay, error: (lastError as Error).message });
+        this.log.warn("gateway: retrying", { method, path, attempt, delay_ms: delay, error: (lastError as Error).message });
         await sleep(delay);
       }
     }

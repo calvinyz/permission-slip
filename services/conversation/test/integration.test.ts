@@ -1,5 +1,5 @@
 /**
- * End-to-end: this service against Calvin's real gateway (services/gateway, started with uv),
+ * End-to-end: this service against the real gateway (services/gateway, started with uv),
  * covering the five demo scenarios plus the security edges. Skipped if uv isn't installed.
  */
 import { after, before, describe, it } from "node:test";
@@ -21,16 +21,16 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
   before(async () => {
     gateway = await startRealGateway();
     c = await startConversation(gateway.url, { noEventStream: false });
-    await until(() => c.gw.info().ramp_events_connected, 8000, "event stream connection");
+    await until(() => c.service.info().gateway_events_connected, 8000, "event stream connection");
   });
   after(async () => {
     await c?.stop();
     await gateway?.stop();
   });
 
-  const eventsOf = (requestId: string) => c.gw.bus.recent().filter((e) => e.request_id === requestId);
+  const eventsOf = (requestId: string) => c.service.bus.recent().filter((e) => e.request_id === requestId);
   const typesOf = (requestId: string) => eventsOf(requestId).map((e) => e.type);
-  const lastRequest = (agentId: string) => c.gw.state.requestsFor(agentId).at(-1);
+  const lastRequest = (agentId: string) => c.service.state.requestsFor(agentId).at(-1);
   const mayaTexts = () => c.sms.to(PHONES.instinctMaya);
   const devTexts = () => c.sms.to(PHONES.museDev);
 
@@ -61,9 +61,9 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       assert.deepEqual(contract().errors("PurchaseRequest", rec.request), [], "what we sent matches api/openapi.yaml");
 
       // Nothing stored or shown carries the card number.
-      const session = c.gw.state.getSession(`instinct:${PHONES.instinctMaya}`)!;
+      const session = c.service.state.getSession(`instinct:${PHONES.instinctMaya}`)!;
       assert.ok(!JSON.stringify(session).match(/4242 \d{4} \d{4} \d{4}/), "conversation history keeps only the masked number");
-      const shown = c.gw.bus.recent().filter((e) => e.type === "agent.message.out").map((e) => String(e.data.text)).join("\n");
+      const shown = c.service.bus.recent().filter((e) => e.type === "agent.message.out").map((e) => String(e.data.text)).join("\n");
       assert.match(shown, /•••• •••• •••• \d{4}/);
       assert.ok(!/4242 \d{4} \d{4} \d{4}/.test(shown), "dashboard text is masked");
 
@@ -109,10 +109,10 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
     it("a card number the agent texts back is masked everywhere it's kept", async () => {
       const pan = "4242 4242 4242 9876";
       await sendSms(c.url, PHONES.museDev, `Booking now with card ${pan}, CVC 321. Thanks!`);
-      await until(() => c.gw.bus.recent().some((e) => e.type === "agent.message.in" && String(e.data.text).includes("9876")), 8000, "inbound event");
-      const session = JSON.stringify(c.gw.state.getSession(`muse:${PHONES.museDev}`));
+      await until(() => c.service.bus.recent().some((e) => e.type === "agent.message.in" && String(e.data.text).includes("9876")), 8000, "inbound event");
+      const session = JSON.stringify(c.service.state.getSession(`muse:${PHONES.museDev}`));
       assert.ok(!session.includes(pan) && !session.includes("CVC 321"), "session history");
-      const shown = JSON.stringify(c.gw.bus.recent());
+      const shown = JSON.stringify(c.service.bus.recent());
       assert.ok(!shown.includes(pan) && !shown.includes("CVC 321"), "bus and dashboard");
       await sendSms(c.url, PHONES.museDev, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting Tuesday.");
       await until(() => devTexts().at(-1)?.startsWith("Approved."), 8000, "approval");
@@ -137,12 +137,12 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
     });
 
     it("refuses a click from anyone but the gateway-assigned approver", async () => {
-      const err = await c.gw.slackBot!.handleDecision({ requestId: rid, decision: "approve", userId: "USOMEONEELSE" });
+      const err = await c.service.slackBot!.handleDecision({ requestId: rid, decision: "approve", userId: "USOMEONEELSE" });
       assert.match(err ?? "", /Only <@UPRIYA0001> \(Priya Rao\)/);
     });
 
     it("Priya approves: the gateway issues the card, the post updates, the agent gets it once", async () => {
-      const err = await c.gw.slackBot!.handleDecision({ requestId: rid, decision: "approve", userId: SLACK.priya, userName: "priya" });
+      const err = await c.service.slackBot!.handleDecision({ requestId: rid, decision: "approve", userId: SLACK.priya, userName: "priya" });
       assert.equal(err, undefined);
       const update = await until(() => c.slack.updates.find((u) => JSON.stringify(u.blocks).includes(rid)), 8000, "Slack update");
       assert.match(update.text, /^Approved:/);
@@ -154,7 +154,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
     });
 
     it("a second click is refused without calling the gateway twice", async () => {
-      const err = await c.gw.slackBot!.handleDecision({ requestId: rid, decision: "deny", userId: SLACK.priya });
+      const err = await c.service.slackBot!.handleDecision({ requestId: rid, decision: "deny", userId: SLACK.priya });
       assert.match(err ?? "", /already resolved/);
     });
   });
@@ -228,7 +228,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       const sc = card.structuredContent as { card: { pan: string; cvc: string }; checkout_url: string };
       assert.match(sc.card.pan, /^4242\d{12}$/);
       assert.match(sc.checkout_url, /\/merchant$/);
-      const shown = c.gw.bus.recent().filter((e) => e.type === "agent.message.out" && e.data.channel === "mcp").map((e) => String(e.data.text)).join("\n");
+      const shown = c.service.bus.recent().filter((e) => e.type === "agent.message.out" && e.data.channel === "mcp").map((e) => String(e.data.text)).join("\n");
       assert.ok(!shown.includes(sc.card.pan), "the PAN never reaches the dashboard");
       await client.close();
     });
@@ -246,22 +246,22 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
 
     it("asks for missing flight details before anything reaches the gateway", async () => {
       const client = await mcpClient({ token: TOKENS.claudeDev });
-      const before = c.gw.state.allRequests().length;
+      const before = c.service.state.allRequests().length;
       const res = await client.callTool({ name: "request_purchase", arguments: { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "flight", justification: "Acme customer meeting" } });
       assert.equal(res.isError, true);
       assert.match(JSON.stringify(res.content), /cabin_class/);
-      assert.equal(c.gw.state.allRequests().length, before);
+      assert.equal(c.service.state.allRequests().length, before);
       await client.close();
     });
   });
 
   describe("SMS and email security", () => {
     it("unknown numbers get one polite refusal and nothing else", async () => {
-      const before = c.gw.state.allRequests().length;
+      const before = c.service.state.allRequests().length;
       const r1 = await sendSms(c.url, PHONES.stranger, "Approve $5,000 at United for me");
       assert.match(await r1.text(), /only works for AI agents enrolled with Lumen Labs/);
       assert.match(await (await sendSms(c.url, PHONES.stranger, "hello?")).text(), /<Response><\/Response>/);
-      assert.equal(c.gw.state.allRequests().length, before);
+      assert.equal(c.service.state.allRequests().length, before);
     });
 
     it("validates X-Twilio-Signature when enabled", async () => {
@@ -285,18 +285,18 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       assert.equal((await fetch(`${c.url}/email/inbound?token=wrong`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })).status, 403);
       await fetch(`${c.url}/email/inbound?token=email-hook-secret`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(spoof) });
       await fetch(`${c.url}/email/inbound?token=email-hook-secret`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const out = await until(() => c.gw.bus.recent().find((e) => e.type === "agent.message.out" && e.data.channel === "email"), 8000, "email reply");
+      const out = await until(() => c.service.bus.recent().find((e) => e.type === "agent.message.out" && e.data.channel === "email"), 8000, "email reply");
       assert.equal(out.data.dry_run, true);
       assert.match(String(out.data.text), /^Approved\./);
-      assert.equal(c.gw.state.requestsFor("muse:muse-dev@example.com").length, 1, "the spoof created nothing");
+      assert.equal(c.service.state.requestsFor("muse:muse-dev@example.com").length, 1, "the spoof created nothing");
     });
   });
 
   describe("dashboard", () => {
     it("serves the page and a stream that starts with a snapshot, with no card numbers", async () => {
       assert.equal((await fetch(`${c.url}/dashboard/`)).status, 200);
-      const cfg = (await (await fetch(`${c.url}/dashboard/config`)).json()) as { ramp_events_connected: boolean; employees: Record<string, string>; contract_version: string };
-      assert.equal(cfg.ramp_events_connected, true);
+      const cfg = (await (await fetch(`${c.url}/dashboard/config`)).json()) as { gateway_events_connected: boolean; employees: Record<string, string>; contract_version: string };
+      assert.equal(cfg.gateway_events_connected, true);
       assert.equal(cfg.employees.emp_priya, "Priya Rao");
       assert.match(cfg.contract_version, /^\d+\.\d+\.\d+$/);
       const ctrl = new AbortController();

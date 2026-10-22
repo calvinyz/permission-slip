@@ -1,5 +1,5 @@
 /**
- * In-process event bus. Ramp-side events (from GET /v1/events) and agent-side events (messages in
+ * In-process event bus. gateway events (from GET /v1/events) and agent-side events (messages in
  * and out) both land here. The dashboard, the Slack bot and the escalation follow-up all subscribe.
  * A ring buffer lets a dashboard that opens mid-demo replay recent history.
  */

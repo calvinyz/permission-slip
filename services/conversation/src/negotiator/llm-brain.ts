@@ -1,7 +1,7 @@
 /**
  * Claude-backed brain. Claude sees the conversation and two tools. It never receives a tool that
  * can approve spend, and its text is only ever used to ask for missing details: decisions are
- * rendered from the Ramp side's response (render.ts), not written by the model.
+ * rendered from the gateway's response (render.ts), not written by the model.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { Logger } from "../logger.ts";

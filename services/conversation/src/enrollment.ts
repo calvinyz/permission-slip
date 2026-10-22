@@ -1,5 +1,5 @@
 /**
- * Agent enrollment: which personal agents may talk to the Ramp agent, and on whose behalf.
+ * Agent enrollment: which personal agents may talk to the gateway, and on whose behalf.
  *
  * The file (data/enrollment.json) holds no secrets. Phone numbers, email addresses and MCP tokens
  * are written as ${ENV_VAR} placeholders and resolved from the environment at startup, so real

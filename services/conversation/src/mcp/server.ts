@@ -19,7 +19,7 @@ import type { EnrolledAgent, Enrollment } from "../enrollment.ts";
 import type { Logger } from "../logger.ts";
 import { validateSubmitInput } from "../negotiator/brain.ts";
 import { describeCard, maskCardNumbers, money, renderDecision, type RenderOptions } from "../negotiator/render.ts";
-import { RampApiError } from "../ramp/client.ts";
+import { GatewayApiError } from "../gateway/client.ts";
 import { NotYourRequestError, type RequestService } from "../requests.ts";
 import type { StateStore } from "../state.ts";
 
@@ -69,7 +69,7 @@ function errorResult(message: string): ToolResult {
 
 export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
   const server = new McpServer(
-    { name: "ramp-agent-gateway", version: deps.serverVersion },
+    { name: "permission-slip", version: deps.serverVersion },
     {
       instructions: `Company spend approvals for ${agent.employee.name}. Before spending company money, call request_purchase. Only the company's policy engine can approve; follow the returned status exactly.`,
     },
@@ -132,7 +132,7 @@ export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
       } catch (err) {
         deps.log.error("mcp: request_purchase failed", { agent_id: agent.agent_id, error: (err as Error).message });
         return errorResult(
-          err instanceof ContractError || (err instanceof RampApiError && err.status !== undefined && err.status < 500)
+          err instanceof ContractError || (err instanceof GatewayApiError && err.status !== undefined && err.status < 500)
             ? `The approval system rejected the request format: ${(err as Error).message}`
             : "The approval system is unreachable right now. Nothing was approved or charged; try again shortly.",
         );

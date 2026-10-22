@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../src/config.ts";
 import { Enrollment } from "../src/enrollment.ts";
-import { createGateway, type GatewayOverrides } from "../src/index.ts";
+import { createConversationService, type ConversationServiceOverrides } from "../src/index.ts";
 import type { SmsSender } from "../src/channels/outbound.ts";
 import type { SlackChat } from "../src/slack/bot.ts";
 import type { CardDetails } from "../src/contract/schemas.ts";
@@ -34,7 +34,7 @@ export function testEnrollment(env: Record<string, string> = ENROLLMENT_ENV): En
 }
 
 // ---------------------------------------------------------------------------------------------
-// Calvin's real gateway (services/gateway), started with uv for end-to-end tests.
+// The real gateway (services/gateway), started with uv for end-to-end tests.
 
 const GATEWAY_DIR = resolve(fileURLToPath(new URL(".", import.meta.url)), "../../gateway");
 export const GATEWAY_TOKEN = "test-gateway-token";
@@ -149,15 +149,15 @@ export function testConfig(env: Record<string, string> = {}) {
 /** A fixed "now": Wednesday Oct 21, 2026 10:00 PT, so "Tuesday" resolves to 2026-10-27 (the seed calendar's Acme meeting). */
 export const FIXED_NOW = () => new Date("2026-10-21T17:00:00Z");
 
-export async function startConversation(gatewayUrl: string, overrides: GatewayOverrides = {}, env: Record<string, string> = {}) {
+export async function startConversation(gatewayUrl: string, overrides: ConversationServiceOverrides = {}, env: Record<string, string> = {}) {
   const config = testConfig({ GATEWAY_URL: gatewayUrl, GATEWAY_API_TOKEN: GATEWAY_TOKEN, ...env });
   const sms = new FakeSms();
   const slack = new FakeSlack();
   const { silentLogger } = await import("../src/logger.ts");
-  const gw = createGateway(config, { log: silentLogger, enrollment: testEnrollment(), sms, slackClient: slack, now: FIXED_NOW, ...overrides });
-  const server = await gw.start(0, "127.0.0.1");
+  const service = createConversationService(config, { log: silentLogger, enrollment: testEnrollment(), sms, slackClient: slack, now: FIXED_NOW, ...overrides });
+  const server = await service.start(0, "127.0.0.1");
   const { port } = server.address() as AddressInfo;
-  return { gw, sms, slack, url: `http://127.0.0.1:${port}`, config, stop: () => gw.stop() };
+  return { service, sms, slack, url: `http://127.0.0.1:${port}`, config, stop: () => service.stop() };
 }
 
 export async function until<T>(fn: () => T | undefined | false | Promise<T | undefined | false>, timeoutMs = 6000, label = "condition"): Promise<T> {

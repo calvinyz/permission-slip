@@ -1,6 +1,5 @@
 /**
- * Summarizes negotiator latency from logs/conversation.log, for the Instinct and Muse rehearsals
- * (spec: "record latency and any off-script behavior").
+ * Summarizes negotiator latency and off-script behavior from logs/conversation.log, per agent.
  *   npm run latency
  *   npm run latency -- --since 2026-10-24T18:00
  */
@@ -31,9 +30,9 @@ const pct = (xs: number[], p: number) => {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))]!;
 };
-const groups = new Map<string, { think: number[]; total: number[]; ramp: number[]; actions: Record<string, number>; statuses: Record<string, number> }>();
+const groups = new Map<string, { think: number[]; total: number[]; gateway: number[]; actions: Record<string, number>; statuses: Record<string, number> }>();
 const g = (agent = "unknown") => {
-  if (!groups.has(agent)) groups.set(agent, { think: [], total: [], ramp: [], actions: {}, statuses: {} });
+  if (!groups.has(agent)) groups.set(agent, { think: [], total: [], gateway: [], actions: {}, statuses: {} });
   return groups.get(agent)!;
 };
 for (const l of lines) {
@@ -46,7 +45,7 @@ for (const l of lines) {
     g(l.agent_id).statuses[l.status ?? "?"] = (g(l.agent_id).statuses[l.status ?? "?"] ?? 0) + 1;
   }
 }
-const ramp = lines.filter((l) => l.msg === "ramp: decision" && typeof l.ms === "number").map((l) => l.ms!);
+const gateway = lines.filter((l) => l.msg === "gateway: decision" && typeof l.ms === "number").map((l) => l.ms!);
 const fmt = (n: number) => (Number.isNaN(n) ? "-" : `${(n / 1000).toFixed(2)} s`);
 console.log(`Log: ${values.file}${values.since ? ` since ${values.since}` : ""}\n`);
 for (const [agent, s] of groups) {
@@ -55,5 +54,5 @@ for (const [agent, s] of groups) {
   console.log(`  message->decision  p50 ${fmt(pct(s.total, 50))}  p95 ${fmt(pct(s.total, 95))}  (n=${s.total.length})`);
   console.log(`  actions ${JSON.stringify(s.actions)}  decisions ${JSON.stringify(s.statuses)}`);
 }
-console.log(`\nRamp side POST /v1/requests  p50 ${fmt(pct(ramp, 50))}  p95 ${fmt(pct(ramp, 95))}  (n=${ramp.length})`);
+console.log(`\nRamp side POST /v1/requests  p50 ${fmt(pct(gateway, 50))}  p95 ${fmt(pct(gateway, 95))}  (n=${gateway.length})`);
 console.log("Add the agent's own reply time (Instinct/Muse) from the phone recording to get end-to-end latency.");

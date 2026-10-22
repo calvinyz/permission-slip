@@ -170,7 +170,7 @@ src/
   index.ts              wiring, routes, startup
   config.ts             env → typed config
   contract/schemas.ts   types plus runtime validation against api/openapi.yaml
-  ramp/                 gateway client + event-stream subscriber
+  gateway/                 gateway client + event-stream subscriber
   negotiator/           brain (LLM or scripted), negotiator, decision rendering
   channels/             SMS (Twilio), email (Postmark), outbound router
   mcp/server.ts         MCP tools

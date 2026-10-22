@@ -1,9 +1,9 @@
 /**
  * Live dashboard: GET /dashboard (page), GET /dashboard/stream (SSE), GET /dashboard/config.
  *
- * The browser only talks to this service, never to the Ramp side, so the Ramp API token stays on
+ * The browser only talks to this service, never to the gateway, so the gateway API token stays on
  * the server and there are no CORS issues. The stream replays recent history on connect, then
- * forwards every bus event (Ramp events plus agent conversation events) live.
+ * forwards every bus event (gateway events plus agent conversation events) live.
  */
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { readFileSync } from "node:fs";
@@ -80,7 +80,7 @@ export function dashboardRouter(opts: DashboardOptions): Router {
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
     res.write(`retry: 2000\n\n`);
     res.write(`event: snapshot\ndata: ${JSON.stringify(opts.bus.recent(500).map(forDashboard))}\n\n`);
-    const off = opts.bus.subscribe((e) => res.write(`event: gw\nid: ${e.id}\ndata: ${JSON.stringify(forDashboard(e))}\n\n`));
+    const off = opts.bus.subscribe((e) => res.write(`event: bus\nid: ${e.id}\ndata: ${JSON.stringify(forDashboard(e))}\n\n`));
     const offReset = opts.bus.onReset(() => res.write(`event: reset\ndata: {}\n\n`));
     const ping = setInterval(() => res.write(`: ping ${Date.now()}\n\n`), 15_000);
     req.on("close", () => {

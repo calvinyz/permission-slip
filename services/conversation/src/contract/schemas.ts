@@ -172,7 +172,7 @@ export interface GatewayEvent {
   id: string;
   type: GatewayEventType | AgentEventType | (string & {});
   ts: string;
-  source: "ramp" | "agent";
+  source: "gateway" | "agent";
   request_id?: string;
   data: Record<string, unknown>;
   /** True for gateway events from before this process started (history replayed on connect). */

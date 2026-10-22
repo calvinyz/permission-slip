@@ -14,7 +14,7 @@ import type { EventBus } from "../bus.ts";
 import type { Card, Escalation, GatewayEvent, PurchaseRequest, Transaction } from "../contract/schemas.ts";
 import type { Enrollment } from "../enrollment.ts";
 import type { Logger } from "../logger.ts";
-import { RampApiError, type RampApi } from "../ramp/client.ts";
+import { GatewayApiError, type GatewayApi } from "../gateway/client.ts";
 import type { StateStore } from "../state.ts";
 import {
   type EscalationDetails,
@@ -44,7 +44,7 @@ interface PostedEscalation {
 
 export interface SlackBotOptions {
   client: SlackChat;
-  ramp: RampApi;
+  gateway: GatewayApi;
   state: StateStore;
   enrollment: Enrollment;
   bus: EventBus;
@@ -90,7 +90,7 @@ export class SlackBot {
 
   private async onEvent(e: GatewayEvent): Promise<void> {
     // History replayed after a restart is shown on the dashboard but never re-posted to Slack.
-    if (e.source !== "ramp" || e.replayed) return;
+    if (e.source !== "gateway" || e.replayed) return;
     try {
       if (e.type === "escalation.opened" && e.request_id) await this.postEscalation(e.request_id, e.data);
       else if (e.type === "escalation.resolved" && e.request_id) await this.markResolvedFromEvent(e.request_id, e.data);
@@ -104,7 +104,7 @@ export class SlackBot {
     }
   }
 
-  /** Collects the details for an escalation from the event, our own record, and the Ramp side. */
+  /** Collects the details for an escalation from the event, our own record, and the gateway. */
   async escalationDetails(requestId: string, data: Record<string, unknown>): Promise<EscalationDetails> {
     const rec = this.o.state.getRequest(requestId);
     const fromEvent = (typeof data.request === "object" && data.request ? data.request : {}) as Partial<PurchaseRequest>;
@@ -117,7 +117,7 @@ export class SlackBot {
     let reason = escalation?.reason ?? rec?.decision?.reason;
     if (!escalation) {
       try {
-        const d = await this.o.ramp.getRequest(requestId);
+        const d = await this.o.gateway.getRequest(requestId);
         escalation = d.escalation ?? undefined;
         reason ??= escalation?.reason ?? d.reason;
       } catch {
@@ -153,7 +153,7 @@ export class SlackBot {
     const p = (async () => {
       // Don't post an escalation that's already been resolved (e.g. history replayed right after a restart).
       try {
-        const current = await this.o.ramp.getRequest(requestId);
+        const current = await this.o.gateway.getRequest(requestId);
         if (current.escalation && current.escalation.status !== "open") {
           this.o.log.info("slack: escalation already resolved, not posting", { request_id: requestId, status: current.escalation.status });
           return undefined;
@@ -178,7 +178,7 @@ export class SlackBot {
    * the Bolt handler (or a test) can show it.
    */
   async handleDecision(args: { requestId: string; decision: "approve" | "deny"; userId: string; userName?: string; channel?: string; messageTs?: string }): Promise<string | undefined> {
-    // A double click must not resolve twice, whatever the Ramp side does with repeats.
+    // A double click must not resolve twice, whatever the gateway does with repeats.
     if (this.deciding.has(args.requestId)) return "Already working on that one.";
     if (this.posted.get(args.requestId)?.resolved) return "This request was already resolved.";
     this.deciding.add(args.requestId);
@@ -206,19 +206,19 @@ export class SlackBot {
     const resolverId = clicker?.employee_id ?? details.approver_id;
     const by = `<@${args.userId}>`;
     try {
-      await this.o.ramp.resolveEscalation(details.escalation_id, {
+      await this.o.gateway.resolveEscalation(details.escalation_id, {
         action: args.decision,
         resolver_id: resolverId,
         note: `Via Slack by ${args.userName ?? args.userId}`,
       });
     } catch (err) {
-      if (err instanceof RampApiError && err.status === 403) {
+      if (err instanceof GatewayApiError && err.status === 403) {
         return `The gateway says ${clicker?.name ?? "you"} isn't the approver for this escalation (${details.approver_name} is). Nothing changed.`;
       }
-      if (err instanceof RampApiError && err.status === 409) {
+      if (err instanceof GatewayApiError && err.status === 409) {
         // Already resolved (double click, or resolved elsewhere): show the current state.
         try {
-          const d = await this.o.ramp.getRequest(args.requestId);
+          const d = await this.o.gateway.getRequest(args.requestId);
           if (posted) await this.updatePost(posted, d.status, "someone else");
         } catch {
           /* ignore */

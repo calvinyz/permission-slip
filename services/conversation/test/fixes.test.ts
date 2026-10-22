@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { EventBus } from "../src/bus.ts";
-import { RampEventStream, eventKey, normalizeRampEvent } from "../src/ramp/events.ts";
+import { GatewayEventStream, eventKey, normalizeGatewayEvent } from "../src/gateway/events.ts";
 import { guardReply } from "../src/negotiator/negotiator.ts";
 import { ScriptedBrain } from "../src/negotiator/scripted-brain.ts";
 import { FallbackBrain } from "../src/negotiator/fallback-brain.ts";
@@ -16,7 +16,7 @@ import { loadConfig } from "../src/config.ts";
 import { silentLogger } from "../src/logger.ts";
 import { MERCHANT_CATEGORIES } from "../src/contract/schemas.ts";
 import { FakeSlack, FIXED_NOW, SLACK, testEnrollment, until } from "./helpers.ts";
-import type { RampApi } from "../src/ramp/client.ts";
+import type { GatewayApi } from "../src/gateway/client.ts";
 
 const cats = [...MERCHANT_CATEGORIES];
 const ctx = (text: string): BrainContext => ({
@@ -43,7 +43,7 @@ function sseResponse(frames: string[], keepOpen = false): Response {
 const frame = (id: number, type: string, ts: string, request_id = "req_1") => `id: ${id}\nevent: ${type}\ndata: ${JSON.stringify({ type, request_id, ts, data: { n: id } })}\n\n`;
 
 describe("event stream (review #1, #2, #4)", () => {
-  it("a restarted Ramp server reusing SSE ids still gets its new events through", async () => {
+  it("a restarted gateway reusing SSE ids still gets its new events through", async () => {
     const bus = new EventBus();
     const now = Date.parse("2026-10-21T17:00:00Z");
     let call = 0;
@@ -53,7 +53,7 @@ describe("event stream (review #1, #2, #4)", () => {
         ? sseResponse([frame(1, "request.received", "2026-10-21T17:00:01Z"), frame(2, "policy.decided", "2026-10-21T17:00:02Z")])
         : sseResponse([frame(1, "request.received", "2026-10-21T17:05:01Z", "req_2"), frame(2, "policy.decided", "2026-10-21T17:05:02Z", "req_2")], true);
     }) as unknown as typeof fetch;
-    const s = new RampEventStream({ url: "http://x/v1/events", headers: {}, bus, fetchImpl, now: () => now, maxBackoffMs: 10 });
+    const s = new GatewayEventStream({ url: "http://x/v1/events", headers: {}, bus, fetchImpl, now: () => now, maxBackoffMs: 10 });
     s.start();
     await until(() => bus.recent().filter((e) => e.request_id === "req_2").length === 2, 3000, "events after restart");
     s.stop();
@@ -61,7 +61,7 @@ describe("event stream (review #1, #2, #4)", () => {
   });
 
   it("a replay of the same events (same content) is de-duplicated", () => {
-    const e = normalizeRampEvent({ id: "1", event: "card.issued", data: JSON.stringify({ request_id: "r", ts: "2026-10-21T00:00:00Z", data: { a: 1 } }) })!;
+    const e = normalizeGatewayEvent({ id: "1", event: "card.issued", data: JSON.stringify({ request_id: "r", ts: "2026-10-21T00:00:00Z", data: { a: 1 } }) })!;
     assert.equal(eventKey(e, true, 1), eventKey({ ...e }, true, 2));
     assert.notEqual(eventKey(e, false, 1), eventKey(e, false, 2), "without timestamps, ids are scoped to the connection");
   });
@@ -71,10 +71,10 @@ describe("event stream (review #1, #2, #4)", () => {
     const now = Date.parse("2026-10-21T17:00:00Z");
     const fetchImpl = (async () => sseResponse([frame(7, "escalation.opened", "2026-10-21T15:00:00Z", "req_old"), frame(8, "escalation.opened", "2026-10-21T17:00:01Z", "req_new")], true)) as unknown as typeof fetch;
     const slack = new FakeSlack();
-    const ramp = { getRequest: async (id: string) => escalated(id) } as unknown as RampApi;
-    const bot = new SlackBot({ client: slack, ramp, state: new StateStore(), enrollment: testEnrollment(), bus, log: silentLogger, managerChannel: "C", restrictToManager: true });
+    const gateway = { getRequest: async (id: string) => escalated(id) } as unknown as GatewayApi;
+    const bot = new SlackBot({ client: slack, gateway, state: new StateStore(), enrollment: testEnrollment(), bus, log: silentLogger, managerChannel: "C", restrictToManager: true });
     bot.start();
-    const s = new RampEventStream({ url: "http://x", headers: {}, bus, fetchImpl, now: () => now });
+    const s = new GatewayEventStream({ url: "http://x", headers: {}, bus, fetchImpl, now: () => now });
     s.start();
     await until(() => slack.posts.length === 1, 3000, "one post");
     await new Promise((r) => setTimeout(r, 100));
@@ -97,7 +97,7 @@ describe("event stream (review #1, #2, #4)", () => {
       if (call === 2) return sseResponse([ev(1, "evt_a", "req_a", "2026-10-21T17:00:01Z"), ev(2, "evt_b", "req_b", "2026-10-21T17:00:02Z"), ev(3, "evt_c", "req_c", "2026-10-21T17:00:03Z")]);
       return sseResponse([ev(1, "evt_new", "req_new", "2026-10-21T17:09:00Z")], true);
     }) as unknown as typeof fetch;
-    const s = new RampEventStream({ url: "http://x", headers: {}, bus, fetchImpl, now: () => now, maxBackoffMs: 10 });
+    const s = new GatewayEventStream({ url: "http://x", headers: {}, bus, fetchImpl, now: () => now, maxBackoffMs: 10 });
     s.start();
     await until(() => bus.recent().some((e) => e.request_id === "req_new"), 3000, "event after reset");
     s.stop();
@@ -113,7 +113,7 @@ describe("event stream (review #1, #2, #4)", () => {
       const body = new ReadableStream({ start(c) { init.signal?.addEventListener("abort", () => c.error(new Error("aborted"))); } });
       return new Response(body, { status: 200 });
     }) as unknown as typeof fetch;
-    const s = new RampEventStream({ url: "http://x", headers: {}, bus, fetchImpl, idleTimeoutMs: 50, maxBackoffMs: 10 });
+    const s = new GatewayEventStream({ url: "http://x", headers: {}, bus, fetchImpl, idleTimeoutMs: 50, maxBackoffMs: 10 });
     s.start();
     await until(() => calls >= 3, 3000, "reconnects");
     s.stop();
@@ -175,11 +175,11 @@ describe("hardening (review #8, #10, #12, #13)", () => {
   });
   it("Slack double click resolves once", async () => {
     let calls = 0;
-    const ramp = {
+    const gateway = {
       resolveEscalation: async () => { calls++; await new Promise((r) => setTimeout(r, 50)); return {}; },
       getRequest: async (id: string) => escalated(id),
-    } as unknown as RampApi;
-    const bot = new SlackBot({ client: new FakeSlack(), ramp, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: false });
+    } as unknown as GatewayApi;
+    const bot = new SlackBot({ client: new FakeSlack(), gateway, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: false });
     const [a, b] = await Promise.all([bot.handleDecision({ requestId: "req_x", decision: "approve", userId: SLACK.priya }), bot.handleDecision({ requestId: "req_x", decision: "approve", userId: SLACK.priya })]);
     assert.equal(calls, 1);
     assert.ok([a, b].some((x) => x && /Already working/.test(x)));
@@ -204,8 +204,8 @@ describe("second review", () => {
 
   it("Slack: a click that can't be tied to an employee is refused unless open approvals are on", async () => {
     const resolved: unknown[] = [];
-    const ramp = { getRequest: async (id: string) => escalatedTo("emp_jordan", id), resolveEscalation: async (_id: string, body: unknown) => { resolved.push(body); return {}; } } as unknown as RampApi;
-    const mk = (openApprovals: boolean) => new SlackBot({ client: new FakeSlack(), ramp, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true, openApprovals });
+    const gateway = { getRequest: async (id: string) => escalatedTo("emp_jordan", id), resolveEscalation: async (_id: string, body: unknown) => { resolved.push(body); return {}; } } as unknown as GatewayApi;
+    const mk = (openApprovals: boolean) => new SlackBot({ client: new FakeSlack(), gateway, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true, openApprovals });
     assert.match((await mk(false).handleDecision({ requestId: "req_j", decision: "approve", userId: "UNOBODY" })) ?? "", /isn't linked to an employee.*SLACK_ID_JORDAN/);
     assert.equal(resolved.length, 0);
     assert.equal(await mk(true).handleDecision({ requestId: "req_j", decision: "approve", userId: "UNOBODY" }), undefined);
@@ -214,8 +214,8 @@ describe("second review", () => {
 
   it("Slack: a mapped clicker resolves as themselves, so the gateway can refuse the wrong approver", async () => {
     const resolved: { resolver_id: string }[] = [];
-    const ramp = { getRequest: async (id: string) => escalatedTo("emp_jordan", id), resolveEscalation: async (_id: string, body: { resolver_id: string }) => { resolved.push(body); return {}; } } as unknown as RampApi;
-    const bot = new SlackBot({ client: new FakeSlack(), ramp, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
+    const gateway = { getRequest: async (id: string) => escalatedTo("emp_jordan", id), resolveEscalation: async (_id: string, body: { resolver_id: string }) => { resolved.push(body); return {}; } } as unknown as GatewayApi;
+    const bot = new SlackBot({ client: new FakeSlack(), gateway, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
     await bot.handleDecision({ requestId: "req_j", decision: "approve", userId: SLACK.priya });
     assert.equal(resolved[0]!.resolver_id, "emp_priya");
   });
@@ -227,22 +227,22 @@ describe("second review", () => {
     const dir = mkdtempSync(join(tmpdir(), "ps-state-"));
     try {
       const file = join(dir, "state.json");
-      const ramp = { getRequest: async (id: string) => escalated(id) } as unknown as RampApi;
+      const gateway = { getRequest: async (id: string) => escalated(id) } as unknown as GatewayApi;
       const slack1 = new FakeSlack();
       const state1 = new StateStore(file);
-      const bot1 = new SlackBot({ client: slack1, ramp, state: state1, enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
+      const bot1 = new SlackBot({ client: slack1, gateway, state: state1, enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
       await bot1.postEscalation("req_r");
       assert.equal(state1.claimSlackAlert("suspended:req_r"), true);
       state1.saveNow();
       const slack2 = new FakeSlack();
       const state2 = new StateStore(file);
-      const bot2 = new SlackBot({ client: slack2, ramp, state: state2, enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
+      const bot2 = new SlackBot({ client: slack2, gateway, state: state2, enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
       await bot2.postEscalation("req_r");
       assert.equal(slack2.posts.length, 0, "not re-posted after restart");
       assert.equal(state2.claimSlackAlert("suspended:req_r"), false, "alert not re-sent after restart");
-      const resolvedRamp = { getRequest: async (id: string) => ({ ...escalated(id), status: "approved", escalation: { ...escalated(id).escalation, status: "approved" } }) } as unknown as RampApi;
+      const resolvedGateway = { getRequest: async (id: string) => ({ ...escalated(id), status: "approved", escalation: { ...escalated(id).escalation, status: "approved" } }) } as unknown as GatewayApi;
       const slack3 = new FakeSlack();
-      const bot3 = new SlackBot({ client: slack3, ramp: resolvedRamp, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
+      const bot3 = new SlackBot({ client: slack3, gateway: resolvedGateway, state: new StateStore(), enrollment: testEnrollment(), bus: new EventBus(), log: silentLogger, managerChannel: "C", restrictToManager: true });
       await bot3.postEscalation("req_done");
       assert.equal(slack3.posts.length, 0, "already-resolved escalation isn't posted");
     } finally {

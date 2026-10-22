@@ -8,7 +8,7 @@ import type { CardDetails, Decision, MerchantCategory, PurchaseRequest, Transcri
 import type { EventBus } from "./bus.ts";
 import type { EnrolledAgent } from "./enrollment.ts";
 import type { Logger } from "./logger.ts";
-import type { RampApi } from "./ramp/client.ts";
+import type { GatewayApi } from "./gateway/client.ts";
 import type { StateStore } from "./state.ts";
 import type { SubmitInput } from "./negotiator/brain.ts";
 
@@ -38,7 +38,7 @@ export class RequestService {
   private readonly recent = new Map<string, { at: number; result: Promise<{ request: PurchaseRequest; decision: Decision }> }>();
 
   constructor(
-    private readonly deps: { ramp: RampApi; state: StateStore; bus: EventBus; log: Logger },
+    private readonly deps: { gateway: GatewayApi; state: StateStore; bus: EventBus; log: Logger },
   ) {}
 
   /** Called after every decision from POST /v1/requests (e.g. to post escalations to Slack). */
@@ -98,7 +98,7 @@ export class RequestService {
       },
       request.request_id,
     );
-    const decision = await this.deps.ramp.submitRequest(request);
+    const decision = await this.deps.gateway.submitRequest(request);
     this.deps.state.updateDecision(request.request_id, decision);
     for (const l of this.listeners) {
       try {
@@ -115,7 +115,7 @@ export class RequestService {
     const d = decision ?? (await this.status(agent, requestId));
     if (d.status !== "approved" || !d.card) return undefined;
     try {
-      return await this.deps.ramp.getCard(d.card.card_id);
+      return await this.deps.gateway.getCard(d.card.card_id);
     } catch (err) {
       this.deps.log.warn("requests: couldn't fetch card details", { request_id: requestId, error: (err as Error).message });
       return undefined;
@@ -129,7 +129,7 @@ export class RequestService {
       // Allow the same employee to look up a request made from another of their agents.
       if (!rec || rec.employee_id !== agent.employee.employee_id) throw new NotYourRequestError(requestId);
     }
-    const decision = await this.deps.ramp.getRequest(requestId);
+    const decision = await this.deps.gateway.getRequest(requestId);
     this.deps.state.updateDecision(requestId, decision);
     return decision;
   }

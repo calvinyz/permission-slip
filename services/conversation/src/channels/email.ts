@@ -1,8 +1,8 @@
 /**
  * Postmark inbound email webhook: POST /email/inbound?token=<EMAIL_WEBHOOK_TOKEN>
  *
- * Only needed if Muse can reach us by email but not SMS (spec, Arnav item 6). Feeds the same
- * negotiator as SMS; replies thread onto the original message.
+ * For personal agents that reach us by email rather than SMS. Feeds the same negotiator as SMS;
+ * replies thread onto the original message.
  */
 import express, { type Request, type Response, type Router } from "express";
 import { timingSafeEqual } from "node:crypto";

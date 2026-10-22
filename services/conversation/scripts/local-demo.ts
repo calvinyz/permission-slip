@@ -3,7 +3,7 @@
  *   npm run demo:local
  *
  * Uses the gateway at GATEWAY_URL if it answers. Otherwise, when GATEWAY_URL is local (the
- * default http://localhost:8000), it starts Calvin's gateway from ../gateway with uv. Then it
+ * default http://localhost:8000), it starts the gateway from ../gateway with uv. Then it
  * starts this service on PORT (default 8787) with demo enrollment values and prints the
  * dashboard URL and copy-paste commands for every scenario.
  * Uses Claude as the negotiator if ANTHROPIC_API_KEY is set, otherwise the scripted parser.
@@ -13,7 +13,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig, loadDotEnv } from "../src/config.ts";
 import { createLogger } from "../src/logger.ts";
-import { createGateway } from "../src/index.ts";
+import { createConversationService } from "../src/index.ts";
 import { DEMO_ENROLLMENT } from "./demo-values.ts";
 
 loadDotEnv();
@@ -34,11 +34,11 @@ let child: ChildProcess | undefined;
 if (!(await healthy(GATEWAY_URL))) {
   const local = new URL(GATEWAY_URL);
   if (!["localhost", "127.0.0.1"].includes(local.hostname)) {
-    console.error(`The gateway at ${GATEWAY_URL} isn't answering. Ask Calvin to start it, or unset GATEWAY_URL to run one locally.`);
+    console.error(`The gateway at ${GATEWAY_URL} isn't answering. Start it, or unset GATEWAY_URL to run one locally.`);
     process.exit(1);
   }
   const dir = resolve(fileURLToPath(new URL(".", import.meta.url)), "../../gateway");
-  console.log(`Starting Calvin's gateway from ${dir} on port ${local.port || 8000} (uv)…`);
+  console.log(`Starting the gateway from ${dir} on port ${local.port || 8000} (uv)…`);
   child = spawn("uv", ["run", "--quiet", "uvicorn", "--factory", "gateway.app:create_app", "--host", "127.0.0.1", "--port", local.port || "8000", "--log-level", "warning"], {
     cwd: dir,
     env: { ...process.env, GATEWAY_API_TOKEN: process.env.GATEWAY_API_TOKEN },
@@ -73,14 +73,14 @@ const config = loadConfig({
   STATE_FILE: "",
 });
 const log = createLogger({ level: "warn", file: config.LOG_FILE });
-const gw = createGateway(config, { log });
-await gw.start(PORT, "127.0.0.1");
+const service = createConversationService(config, { log });
+await service.start(PORT, "127.0.0.1");
 
 const base = `http://localhost:${PORT}`;
 console.log(`
   Permission Slip, conversation service: local demo
   Gateway       ${GATEWAY_URL}${child ? " (started by this script)" : ""}
-  Negotiator    ${gw.negotiator.brainName}${gw.negotiator.brainName === "scripted" ? " (set ANTHROPIC_API_KEY for Claude)" : ""}
+  Negotiator    ${service.negotiator.brainName}${service.negotiator.brainName === "scripted" ? " (set ANTHROPIC_API_KEY for Claude)" : ""}
 
   Dashboard     ${base}/dashboard/
   Issuer        ${GATEWAY_URL}/issuer       Demo merchant  ${GATEWAY_URL}/merchant

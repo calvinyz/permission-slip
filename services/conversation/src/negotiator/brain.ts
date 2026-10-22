@@ -2,7 +2,7 @@
  * The "brain" decides the negotiator's next move for one inbound message. It can only choose one
  * of four actions, and none of them approves anything:
  *   reply     ask the agent for missing details (free text)
- *   submit    send a structured PurchaseRequest to the Ramp side
+ *   submit    send a structured PurchaseRequest to the gateway
  *   status    look up an earlier request
  *   no_reply  stay quiet (acknowledgements; prevents agent-to-agent loops)
  */

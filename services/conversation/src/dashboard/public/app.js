@@ -401,10 +401,10 @@ async function loadConfig() {
     $("company").textContent = cfg.company || "";
     employees = cfg.employees || employees;
     $("brain").textContent = cfg.negotiator ? (cfg.negotiator === "scripted" ? "Scripted negotiator" : "Claude negotiator") : "";
-    $("conn-ramp").dataset.state = cfg.ramp_events_connected ? "up" : "down";
-    $("conn-ramp").title = cfg.gateway_url || "";
+    $("conn-gateway").dataset.state = cfg.gateway_events_connected ? "up" : "down";
+    $("conn-gateway").title = cfg.gateway_url || "";
   } catch {
-    $("conn-ramp").dataset.state = "down";
+    $("conn-gateway").dataset.state = "down";
   }
 }
 loadConfig();
@@ -433,7 +433,7 @@ function connect() {
     model = applyAll(createModel(), JSON.parse(ev.data));
     scheduleRender();
   });
-  es.addEventListener("gw", (ev) => {
+  es.addEventListener("bus", (ev) => {
     apply(model, JSON.parse(ev.data));
     scheduleRender();
   });

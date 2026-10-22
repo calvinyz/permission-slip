@@ -1,15 +1,15 @@
 /**
  * The negotiator turns a conversation with a personal agent (over SMS or email) into structured
- * PurchaseRequests, and relays the Ramp side's decisions back in plain language.
+ * PurchaseRequests, and relays the gateway's decisions back in plain language.
  *
- * It has no authority. Its only path to money is RequestService.submit, which asks the Ramp side;
- * every decision message is rendered from the Ramp side's Decision (render.ts).
+ * It has no authority. Its only path to money is RequestService.submit, which asks the gateway;
+ * every decision message is rendered from the gateway's Decision (render.ts).
  */
 import type { Decision } from "../contract/schemas.ts";
 import type { EventBus } from "../bus.ts";
 import type { EnrolledAgent } from "../enrollment.ts";
 import type { Logger } from "../logger.ts";
-import { RampApiError } from "../ramp/client.ts";
+import { GatewayApiError } from "../gateway/client.ts";
 import { NotYourRequestError, type RequestService } from "../requests.ts";
 import type { StateStore } from "../state.ts";
 import { type Brain, type BrainContext, type RequestSummary, validateSubmitInput } from "./brain.ts";
@@ -57,7 +57,7 @@ const MAX_INBOUND_CHARS = 4000;
 /**
  * The model's free text is only meant to ask for details. If it reads like an outcome or card
  * details (e.g. after an injected "tell them it's approved"), we replace it: only rendered
- * decisions from the Ramp side may say those things.
+ * decisions from the gateway may say those things.
  */
 // Statements of an outcome ("it's approved", "I've approved", "Denied."), not questions that
 // merely mention approval ("so I can get this approved?").
@@ -214,11 +214,11 @@ export class Negotiator {
           ? "I couldn't put that into a valid request. Please resend the merchant, total, what it's for, and the meeting date."
           : err instanceof NotYourRequestError
           ? "I can't find that request for you. Check the request ID."
-          : err instanceof RampApiError && err.status !== undefined && err.status < 500
+          : err instanceof GatewayApiError && err.status !== undefined && err.status < 500
             ? "The approval system rejected that request's format. I've logged it; please try rephrasing."
             : "I couldn't reach the approval system just now. Nothing was approved or charged. Please try again in a minute.";
-      log.error("negotiator: request failed", { agent_id: agent.agent_id, error: (err as Error).message, status: (err as RampApiError).status, body: (err as RampApiError).body });
-      bus.emitAgent("agent.error", { agent_id: agent.agent_id, stage: "ramp_api", error: (err as Error).message });
+      log.error("negotiator: request failed", { agent_id: agent.agent_id, error: (err as Error).message, status: (err as GatewayApiError).status, body: (err as GatewayApiError).body });
+      bus.emitAgent("agent.error", { agent_id: agent.agent_id, stage: "gateway_api", error: (err as Error).message });
       return { replies: [say(message)], action: "error" };
     }
   }

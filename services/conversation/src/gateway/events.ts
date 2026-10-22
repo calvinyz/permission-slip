@@ -1,9 +1,8 @@
 /**
- * Subscribes to the Ramp side's event stream (GET /v1/events, Server-Sent Events) and republishes
+ * Subscribes to the gateway's event stream (GET /v1/events, Server-Sent Events) and republishes
  * every event on the local bus in one normalized shape.
  *
- * The spec names the events but not their envelope, so normalization accepts the common
- * variants: the type can come from the SSE "event:" field or a "type"/"event" property; the
+ * Normalization is deliberately tolerant of envelope variants: the type can come from the SSE "event:" field or a "type"/"event" property; the
  * request id can be top-level or nested under "data"; the payload can be under "data", "payload",
  * or be the object itself. Reconnects use exponential backoff and replay the full history (deduped by event_id).
  */
@@ -18,7 +17,7 @@ import { silentLogger } from "../logger.ts";
 const KNOWN = new Set<string>(GATEWAY_EVENT_TYPES);
 let fallbackCounter = 0;
 
-export function normalizeRampEvent(msg: { event?: string; id?: string; data: string }): GatewayEvent | undefined {
+export function normalizeGatewayEvent(msg: { event?: string; id?: string; data: string }): GatewayEvent | undefined {
   let body: unknown;
   try {
     body = JSON.parse(msg.data);
@@ -39,13 +38,13 @@ export function normalizeRampEvent(msg: { event?: string; id?: string; data: str
     (isRecord(data.request) ? str(data.request.request_id) : undefined) ??
     (isRecord(data.decision) ? str(data.decision.request_id) : undefined);
   const ts = str(obj.ts) ?? str(obj.timestamp) ?? str(obj.created_at) ?? str(obj.time) ?? new Date().toISOString();
-  const id = msg.id ?? str(obj.id) ?? str(obj.event_id) ?? `ramp_${Date.now()}_${++fallbackCounter}`;
+  const id = msg.id ?? str(obj.id) ?? str(obj.event_id) ?? `gateway_${Date.now()}_${++fallbackCounter}`;
 
   return {
-    id: `ramp:${id}`,
+    id: `gateway:${id}`,
     type,
     ts,
-    source: "ramp",
+    source: "gateway",
     ...(requestId ? { request_id: requestId } : {}),
     data,
   };
@@ -64,7 +63,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-export interface RampEventStreamOptions {
+export interface GatewayEventStreamOptions {
   url: string;
   headers: Record<string, string>;
   bus: EventBus;
@@ -83,16 +82,16 @@ export interface RampEventStreamOptions {
 }
 
 /**
- * Stable identity for an event across reconnects and server restarts. With a Ramp-side timestamp
+ * Stable identity for an event across reconnects and server restarts. With a gateway timestamp
  * we hash the content, so a replay of the same event dedupes and a restarted server's reused SSE
  * ids don't collide. Without one we fall back to the SSE id scoped to this connection.
  */
 export function eventKey(e: GatewayEvent, rawTs: boolean, connection: number): string {
-  if (rawTs) return `ramp:${createHash("sha1").update(`${e.type}|${e.request_id ?? ""}|${e.ts}|${JSON.stringify(e.data)}`).digest("hex").slice(0, 20)}`;
-  return `ramp:c${connection}:${e.id.replace(/^ramp:/, "")}`;
+  if (rawTs) return `gateway:${createHash("sha1").update(`${e.type}|${e.request_id ?? ""}|${e.ts}|${JSON.stringify(e.data)}`).digest("hex").slice(0, 20)}`;
+  return `gateway:c${connection}:${e.id.replace(/^gateway:/, "")}`;
 }
 
-export class RampEventStream {
+export class GatewayEventStream {
   private abort?: AbortController;
   private stopped = false;
   private backoff = 500;
@@ -103,7 +102,7 @@ export class RampEventStream {
   private readonly warnedTypes = new Set<string>();
   private warnedSkew = false;
 
-  constructor(private readonly opts: RampEventStreamOptions) {
+  constructor(private readonly opts: GatewayEventStreamOptions) {
     this.log = opts.log ?? silentLogger;
     this.startedAt = (opts.now ?? Date.now)();
   }
@@ -124,7 +123,7 @@ export class RampEventStream {
         await this.connectOnce();
       } catch (err) {
         if (this.stopped) break;
-        this.log.warn("ramp events: stream error", { error: (err as Error).message, retry_ms: this.backoff });
+        this.log.warn("gateway events: stream error", { error: (err as Error).message, retry_ms: this.backoff });
       }
       this.connected = false;
       if (this.stopped) break;
@@ -134,7 +133,7 @@ export class RampEventStream {
   }
 
   private handle(msg: EventSourceMessage): void {
-    const event = normalizeRampEvent(msg);
+    const event = normalizeGatewayEvent(msg);
     if (!event) return;
     let rawTs = false;
     let eventId: string | undefined;
@@ -146,19 +145,19 @@ export class RampEventStream {
     } catch {
       /* not JSON */
     }
-    event.id = eventId ? `ramp:${eventId}` : eventKey(event, rawTs, this.connection);
+    event.id = eventId ? `gateway:${eventId}` : eventKey(event, rawTs, this.connection);
     const now = (this.opts.now ?? Date.now)();
     const evTs = Date.parse(event.ts);
     if (rawTs && Number.isFinite(evTs)) {
       if (evTs < this.startedAt - (this.opts.historyMarginMs ?? 120_000)) event.replayed = true;
       else if (!this.warnedSkew && Math.abs(now - evTs) > 60_000 && evTs > this.startedAt) {
         this.warnedSkew = true;
-        this.log.warn("ramp events: event timestamps differ from this machine's clock by over a minute; sync both clocks", { skew_ms: now - evTs });
+        this.log.warn("gateway events: event timestamps differ from this machine's clock by over a minute; sync both clocks", { skew_ms: now - evTs });
       }
     }
     if (!KNOWN.has(event.type) && !this.warnedTypes.has(event.type)) {
       this.warnedTypes.add(event.type);
-      this.log.warn("ramp events: unknown event type (passing through)", { type: event.type });
+      this.log.warn("gateway events: unknown event type (passing through)", { type: event.type });
     }
     this.opts.bus.publish(event);
   }
@@ -189,7 +188,7 @@ export class RampEventStream {
       if (!res.ok || !res.body) throw new Error(`GET /v1/events returned HTTP ${res.status}`);
       this.connected = true;
       this.backoff = 500;
-      this.log.info("ramp events: connected", { url: this.opts.url, connection: this.connection });
+      this.log.info("gateway events: connected", { url: this.opts.url, connection: this.connection });
       kick();
       const parser = createParser({ onEvent: (msg: EventSourceMessage) => this.handle(msg) });
       const decoder = new TextDecoder();

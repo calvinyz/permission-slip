@@ -1,9 +1,8 @@
 /**
- * Contract smoke test against a running gateway (Calvin's services/gateway, local or on his
- * tailnet URL). It checks every call this service makes, and every event it reads, against
+ * Contract smoke test against a running gateway (services/gateway, local or remote). It checks every call this service makes, and every event it reads, against
  * api/openapi.yaml, and prints exactly where they disagree.
  *
- *   GATEWAY_URL=https://calvins-macbook-pro-2.tail56a58a.ts.net GATEWAY_API_TOKEN=... npm run smoke
+ *   GATEWAY_URL=https://<gateway-host> GATEWAY_API_TOKEN=... npm run smoke
  *   npm run smoke -- --escalate     # also files the $2,400 conference and resolves it as Priya
  *   npm run smoke -- --charge       # also checks out at the demo merchant with the issued card
  *
@@ -14,8 +13,8 @@ import { parseArgs } from "node:util";
 import { createParser, type EventSourceMessage } from "eventsource-parser";
 import { loadDotEnv } from "../src/config.ts";
 import { contract, GATEWAY_EVENT_TYPES, type PurchaseRequest } from "../src/contract/schemas.ts";
-import { normalizeRampEvent } from "../src/ramp/events.ts";
-import { RampApiError, RampClient } from "../src/ramp/client.ts";
+import { normalizeGatewayEvent } from "../src/gateway/events.ts";
+import { GatewayApiError, GatewayClient } from "../src/gateway/client.ts";
 import { newRequestId } from "../src/requests.ts";
 
 loadDotEnv();
@@ -26,10 +25,10 @@ const { values } = parseArgs({
     wait: { type: "string", default: "4" },
   },
 });
-const url = (process.env.GATEWAY_URL || process.env.RAMP_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+const url = (process.env.GATEWAY_URL || "http://localhost:8000").replace(/\/+$/, "");
 // "dev-token" is the gateway's own default when GATEWAY_API_TOKEN is unset (local runs only).
-const token = process.env.GATEWAY_API_TOKEN || process.env.RAMP_API_TOKEN || "dev-token";
-const client = new RampClient({ baseUrl: url, token, retries: 0 });
+const token = process.env.GATEWAY_API_TOKEN || "dev-token";
+const client = new GatewayClient({ baseUrl: url, token, retries: 0 });
 const c = contract();
 const problems: string[] = [];
 const ok = (m: string) => console.log(`  ✓ ${m}`);
@@ -38,7 +37,7 @@ const bad = (m: string) => {
   console.log(`  ✗ ${m}`);
 };
 
-console.log(`Gateway: ${url}\nToken: ${process.env.GATEWAY_API_TOKEN || process.env.RAMP_API_TOKEN ? "from .env" : "dev-token (the gateway's local default)"}\nContract: api/openapi.yaml v${c.version}\n`);
+console.log(`Gateway: ${url}\nToken: ${process.env.GATEWAY_API_TOKEN ? "from .env" : "dev-token (the gateway's local default)"}\nContract: api/openapi.yaml v${c.version}\n`);
 
 console.log("1. GET /healthz");
 try {
@@ -178,7 +177,7 @@ if (values.escalate) {
       else bad(`resolve returned ${r.status} without a card`);
     }
   } catch (err) {
-    bad(`escalation: ${(err as Error).message} ${JSON.stringify((err as RampApiError).body ?? "").slice(0, 300)}`);
+    bad(`escalation: ${(err as Error).message} ${JSON.stringify((err as GatewayApiError).body ?? "").slice(0, 300)}`);
   }
 }
 
@@ -186,13 +185,13 @@ await new Promise((r) => setTimeout(r, Number(values.wait) * 1000));
 ctrl.abort();
 // The stream replays history first; only this run's requests are reported.
 const mine = raw.filter((m) => {
-  const id = normalizeRampEvent(m)?.request_id;
+  const id = normalizeGatewayEvent(m)?.request_id;
   return id !== undefined && created.has(id);
 });
 console.log(`\n6. Event stream (${streamStatus}): ${raw.length} events received, ${mine.length} for this run's requests`);
 const known = new Set<string>(GATEWAY_EVENT_TYPES);
 for (const m of mine) {
-  const n = normalizeRampEvent(m);
+  const n = normalizeGatewayEvent(m);
   let body: unknown;
   try {
     body = JSON.parse(m.data);

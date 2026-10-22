@@ -1,8 +1,8 @@
 /**
  * Pushes news to SMS and email agents after the first reply:
  *  - when a manager resolves an escalation (Slack), the agent gets the outcome and the card;
- *  - when the purchase settles and is reconciled, the employee gets the confirmation (spec flow
- *    step 7: "Employee gets a confirmation. No receipt upload, no expense report.");
+ *  - when the purchase settles and is reconciled, the employee gets the confirmation, with no
+ *    receipt upload and no expense report;
  *  - when a card is suspended after a settlement mismatch, the agent gets a heads-up.
  *
  * Driven by the event stream, with polling as a fallback for escalations in case the stream
@@ -16,7 +16,7 @@ import type { Enrollment } from "./enrollment.ts";
 import type { Logger } from "./logger.ts";
 import type { OutboundRouter } from "./channels/outbound.ts";
 import { maskCardNumbers, renderEscalationOutcome, renderReconciled, renderSuspension, type RenderOptions } from "./negotiator/render.ts";
-import type { RampApi } from "./ramp/client.ts";
+import type { GatewayApi } from "./gateway/client.ts";
 import type { RequestRecord, StateStore } from "./state.ts";
 
 const RESOLUTION_EVENTS = new Set(["escalation.resolved", "card.issued", "mandate.signed", "policy.decided"]);
@@ -32,7 +32,7 @@ export class Followups {
   constructor(
     private readonly deps: {
       bus: EventBus;
-      ramp: RampApi;
+      gateway: GatewayApi;
       state: StateStore;
       enrollment: Enrollment;
       outbound: OutboundRouter;
@@ -59,7 +59,7 @@ export class Followups {
   }
 
   private onEvent(e: GatewayEvent): void {
-    if (e.source !== "ramp" || e.replayed) return;
+    if (e.source !== "gateway" || e.replayed) return;
     const fail = (err: unknown) => this.deps.log.warn("followups: handler failed", { type: e.type, error: (err as Error).message });
     if (RESOLUTION_EVENTS.has(e.type) && e.request_id) void this.checkEscalation(e.request_id).catch(fail);
     if (e.type === "txn.mismatch" && e.request_id) this.mismatches.set(e.request_id, (e.data.transaction ?? {}) as Partial<Transaction>);
@@ -87,7 +87,7 @@ export class Followups {
     }
     this.inFlight.add(requestId);
     try {
-      const decision = await this.deps.ramp.getRequest(requestId);
+      const decision = await this.deps.gateway.getRequest(requestId);
       this.deps.state.updateDecision(requestId, decision);
       if (decision.status === "escalated") return;
       // Card issuance can trail the resolution event; wait for it before texting.
@@ -98,7 +98,7 @@ export class Followups {
       let details;
       if (decision.status === "approved" && decision.card) {
         try {
-          details = await this.deps.ramp.getCard(decision.card.card_id);
+          details = await this.deps.gateway.getCard(decision.card.card_id);
         } catch (err) {
           this.deps.log.warn("followups: couldn't fetch card details", { request_id: requestId, error: (err as Error).message });
         }

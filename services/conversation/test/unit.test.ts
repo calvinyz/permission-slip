@@ -7,7 +7,7 @@ import { Enrollment, normalizeEmail, normalizePhone } from "../src/enrollment.ts
 import { describeCounteroffer, maskCardNumbers, renderDecision, renderEscalationOutcome, renderReconciled, renderSuspension } from "../src/negotiator/render.ts";
 import { splitForSms } from "../src/channels/outbound.ts";
 import { stripQuotedReply } from "../src/channels/email.ts";
-import { normalizeRampEvent } from "../src/ramp/events.ts";
+import { normalizeGatewayEvent } from "../src/gateway/events.ts";
 import { EventBus } from "../src/bus.ts";
 import { ENROLLMENT_ENV, SLACK, TOKENS, testEnrollment } from "./helpers.ts";
 import { loadConfig } from "../src/config.ts";
@@ -32,7 +32,7 @@ const APPROVED: Decision = {
 } as Decision;
 const DETAILS = { ...CARD, pan: "4242424242421234", cvc: "123", exp_month: 10, exp_year: 2027 };
 
-describe("contract (api/openapi.yaml, Calvin's source of truth)", () => {
+describe("contract (api/openapi.yaml)", () => {
   it("loads the contract and accepts every request example in api/examples", () => {
     assert.match(contract().version, /^\d+\.\d+\.\d+$/);
     for (const f of ["01-happy-path.request.json", "02-pushback.request.json", "02-pushback-accept.request.json", "03-escalation.request.json", "04-mismatch.request.json"]) {
@@ -50,7 +50,7 @@ describe("contract (api/openapi.yaml, Calvin's source of truth)", () => {
     assert.ok(contract().errors("PurchaseRequest", { ...ok, surprise: 1 }).length, "no extra fields");
     assert.throws(() => contract().assert("PurchaseRequest", { ...ok, merchant_category: "casino" }), ContractError);
   });
-  it("accepts the spec's decision and card shapes", () => {
+  it("accepts the contract's decision and card shapes", () => {
     assert.deepEqual(contract().errors("Decision", APPROVED), []);
     assert.deepEqual(contract().errors("CardDetails", DETAILS), []);
   });
@@ -139,7 +139,7 @@ describe("helpers", () => {
     assert.ok(parts.every((p) => p.length <= 1500));
   });
   it("strips quoted email history", () => {
-    assert.equal(stripQuotedReply("Yes, economy works.\n\nOn Tue, Oct 20, 2026 Ramp wrote:\n> old"), "Yes, economy works.");
+    assert.equal(stripQuotedReply("Yes, economy works.\n\nOn Tue, Oct 20, 2026 Permission Slip wrote:\n> old"), "Yes, economy works.");
   });
   it("redacts secrets in logs", () => {
     assert.deepEqual(redact({ api_key: "x", nested: { token: "y", ok: 1 } }), { api_key: "[redacted]", nested: { token: "[redacted]", ok: 1 } });
@@ -155,16 +155,16 @@ describe("helpers", () => {
 describe("gateway event normalization", () => {
   it("reads the gateway's SSE envelope (id: seq, event: type, data: Event JSON)", () => {
     const body = { event_id: "evt_abc123", seq: 7, type: "card.issued", ts: "2026-10-21T15:00:00Z", request_id: "req_1", data: { card: { card_id: "card_1" } } };
-    const e = normalizeRampEvent({ event: "card.issued", id: "7", data: JSON.stringify(body) });
+    const e = normalizeGatewayEvent({ event: "card.issued", id: "7", data: JSON.stringify(body) });
     assert.equal(e?.type, "card.issued");
     assert.equal(e?.request_id, "req_1");
     assert.equal(e?.ts, "2026-10-21T15:00:00Z");
     assert.deepEqual(e?.data, { card: { card_id: "card_1" } });
   });
   it("finds request_id nested in a request object, ignores pings", () => {
-    assert.equal(normalizeRampEvent({ event: "request.received", data: JSON.stringify({ request_id: null, data: { request: { request_id: "req_3" } } }) })?.request_id, "req_3");
-    assert.equal(normalizeRampEvent({ event: "ping", data: "{}" }), undefined);
-    assert.equal(normalizeRampEvent({ data: "{}" }), undefined);
+    assert.equal(normalizeGatewayEvent({ event: "request.received", data: JSON.stringify({ request_id: null, data: { request: { request_id: "req_3" } } }) })?.request_id, "req_3");
+    assert.equal(normalizeGatewayEvent({ event: "ping", data: "{}" }), undefined);
+    assert.equal(normalizeGatewayEvent({ data: "{}" }), undefined);
   });
 });
 
@@ -173,7 +173,7 @@ describe("event bus", () => {
     const bus = new EventBus(10);
     const seen: string[] = [];
     bus.subscribe((e) => seen.push(e.id));
-    const e = { id: "x", type: "t", ts: "", source: "ramp" as const, data: {} };
+    const e = { id: "x", type: "t", ts: "", source: "gateway" as const, data: {} };
     assert.equal(bus.publish(e), true);
     assert.equal(bus.publish(e), false);
     assert.deepEqual(seen, ["x"]);

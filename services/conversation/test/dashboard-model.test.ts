@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 // @ts-expect-error plain ESM JavaScript module shared with the browser
 import { applyAll, chipStatus, createModel, orderedRequests } from "../src/dashboard/public/model.js";
 
-const ev = (type: string, data: Record<string, unknown>, request_id?: string, ts = "2026-10-21T17:00:00.000Z") => ({ id: `${type}-${Math.random()}`, type, ts, source: type.startsWith("agent.") ? "agent" : "ramp", request_id, data });
+const ev = (type: string, data: Record<string, unknown>, request_id?: string, ts = "2026-10-21T17:00:00.000Z") => ({ id: `${type}-${Math.random()}`, type, ts, source: type.startsWith("agent.") ? "agent" : "gateway", request_id, data });
 
 describe("dashboard model", () => {
   // Fixtures follow the Event shapes in api/openapi.yaml.

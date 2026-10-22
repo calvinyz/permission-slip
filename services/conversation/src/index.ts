@@ -9,7 +9,7 @@
  *   POST /admin/reset          clear conversations between demo takes
  *
  * Slack runs over Socket Mode (no route). Everything that decides or moves money lives on the
- * Ramp side; this service only talks.
+ * gateway; this service only talks.
  */
 import express, { type Request, type Response } from "express";
 import type { Server } from "node:http";
@@ -31,8 +31,8 @@ import { Negotiator } from "./negotiator/negotiator.ts";
 import { ScriptedBrain } from "./negotiator/scripted-brain.ts";
 import { FallbackBrain } from "./negotiator/fallback-brain.ts";
 import { timingSafeEqual } from "node:crypto";
-import { type RampApi, RampClient } from "./ramp/client.ts";
-import { RampEventStream } from "./ramp/events.ts";
+import { type GatewayApi, GatewayClient } from "./gateway/client.ts";
+import { GatewayEventStream } from "./gateway/events.ts";
 import { RequestService } from "./requests.ts";
 import { type SlackChat, SlackBot } from "./slack/bot.ts";
 import { StateStore } from "./state.ts";
@@ -40,27 +40,27 @@ import { contract } from "./contract/schemas.ts";
 
 const VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
-export interface GatewayOverrides {
+export interface ConversationServiceOverrides {
   log?: Logger;
   brain?: Brain;
-  ramp?: RampApi;
+  gateway?: GatewayApi;
   sms?: SmsSender;
   email?: EmailSender;
   slackClient?: SlackChat;
   enrollment?: Enrollment;
   now?: () => Date;
-  /** Disable the Ramp event stream subscription (tests drive the bus directly). */
+  /** Disable the gateway event stream subscription (tests drive the bus directly). */
   noEventStream?: boolean;
 }
 
-export function createGateway(config: Config, overrides: GatewayOverrides = {}) {
+export function createConversationService(config: Config, overrides: ConversationServiceOverrides = {}) {
   const log = overrides.log ?? createLogger({ level: config.LOG_LEVEL, file: config.LOG_FILE });
   const bus = new EventBus();
   const state = new StateStore(config.STATE_FILE);
   const enrollment = overrides.enrollment ?? Enrollment.fromFile(config.ENROLLMENT_FILE, process.env, log);
-  const rampClient = new RampClient({ baseUrl: config.GATEWAY_URL, token: config.GATEWAY_API_TOKEN, timeoutMs: config.GATEWAY_TIMEOUT_MS, log });
-  const ramp: RampApi = overrides.ramp ?? rampClient;
-  const requests = new RequestService({ ramp, state, bus, log });
+  const gatewayClient = new GatewayClient({ baseUrl: config.GATEWAY_URL, token: config.GATEWAY_API_TOKEN, timeoutMs: config.GATEWAY_TIMEOUT_MS, log });
+  const gateway: GatewayApi = overrides.gateway ?? gatewayClient;
+  const requests = new RequestService({ gateway, state, bus, log });
   const brain: Brain =
     overrides.brain ??
     (config.negotiatorMode === "llm"
@@ -90,7 +90,7 @@ export function createGateway(config: Config, overrides: GatewayOverrides = {}) 
   const outbound = new OutboundRouter({ sms, email, state, bus, log });
   const followups = new Followups({
     bus,
-    ramp,
+    gateway,
     state,
     enrollment,
     outbound,
@@ -104,13 +104,13 @@ export function createGateway(config: Config, overrides: GatewayOverrides = {}) 
   });
   const events =
     config.GATEWAY_EVENTS_ENABLED && !overrides.noEventStream
-      ? new RampEventStream({ url: `${rampClient.baseUrl}/v1/events`, headers: rampClient.authHeaders(), bus, log })
+      ? new GatewayEventStream({ url: `${gatewayClient.baseUrl}/v1/events`, headers: gatewayClient.authHeaders(), bus, log })
       : undefined;
 
   const slackChannel = config.SLACK_MANAGER_CHANNEL;
   let slackBot: SlackBot | undefined;
   if (overrides.slackClient && slackChannel) {
-    slackBot = new SlackBot({ client: overrides.slackClient, ramp, state, enrollment, bus, log, managerChannel: slackChannel, financeChannel: config.SLACK_FINANCE_CHANNEL, restrictToManager: true, openApprovals: config.SLACK_OPEN_APPROVALS });
+    slackBot = new SlackBot({ client: overrides.slackClient, gateway, state, enrollment, bus, log, managerChannel: slackChannel, financeChannel: config.SLACK_FINANCE_CHANNEL, restrictToManager: true, openApprovals: config.SLACK_OPEN_APPROVALS });
   }
 
   // Post escalations to Slack straight from the decision too, so scenario 3 works even if the
@@ -128,7 +128,7 @@ export function createGateway(config: Config, overrides: GatewayOverrides = {}) 
     gateway_url: config.GATEWAY_URL,
     contract_version: contract().version,
     employees: Object.fromEntries([...enrollment.employees.values()].map((e) => [e.employee_id, e.name])),
-    ramp_events_connected: events?.connected ?? false,
+    gateway_events_connected: events?.connected ?? false,
     negotiator: brain.name,
     channels: { sms: config.twilioEnabled ? "twilio" : "dry-run", email: config.emailEnabled ? "postmark" : "off", mcp: config.MCP_ENABLED, slack: Boolean(slackBot) },
     agents: enrollment.summary(),
@@ -138,7 +138,7 @@ export function createGateway(config: Config, overrides: GatewayOverrides = {}) 
   app.disable("x-powered-by");
   app.set("trust proxy", true);
   app.get("/", (_req, res) => res.redirect("/dashboard/"));
-  app.get("/healthz", (_req, res) => res.json({ ok: true, version: VERSION, ramp_events_connected: events?.connected ?? false }));
+  app.get("/healthz", (_req, res) => res.json({ ok: true, version: VERSION, gateway_events_connected: events?.connected ?? false }));
   app.use("/sms", smsRouter({ enrollment, negotiator, outbound, log, company: config.COMPANY_NAME, authToken: config.TWILIO_AUTH_TOKEN, validateSignature: config.TWILIO_VALIDATE_SIGNATURE, publicBaseUrl: config.PUBLIC_BASE_URL }));
   if (config.EMAIL_WEBHOOK_TOKEN) app.use("/email", emailRouter({ enrollment, negotiator, outbound, state, log, webhookToken: config.EMAIL_WEBHOOK_TOKEN, requireAuth: config.EMAIL_REQUIRE_AUTH }));
   if (config.MCP_ENABLED) app.use("/mcp", mcpRouter({ enrollment, requests, state, bus, log, merchantCategories: config.merchantCategories, render, serverVersion: VERSION }));
@@ -190,7 +190,7 @@ export function createGateway(config: Config, overrides: GatewayOverrides = {}) 
     set slackBot(b: SlackBot | undefined) {
       slackBot = b;
     },
-    ramp,
+    gateway,
     log,
     info,
     async start(port = config.PORT, host = config.HOST): Promise<Server> {
@@ -216,7 +216,7 @@ async function main() {
   loadDotEnv();
   const config = loadConfig();
   const log = createLogger({ level: config.LOG_LEVEL, file: config.LOG_FILE });
-  const gw = createGateway(config, { log });
+  const service = createConversationService(config, { log });
 
   if (config.slackEnabled) {
     if (!config.SLACK_MANAGER_CHANNEL) {
@@ -224,11 +224,11 @@ async function main() {
     } else {
       const { createSlackApp, registerSlackHandlers } = await import("./slack/app.ts");
       const slackApp = createSlackApp({ botToken: config.SLACK_BOT_TOKEN!, appToken: config.SLACK_APP_TOKEN!, log });
-      const bot = new SlackBot({ client: slackApp.client as unknown as SlackChat, ramp: gw.ramp, state: gw.state, enrollment: gw.enrollment, bus: gw.bus, log, managerChannel: config.SLACK_MANAGER_CHANNEL, financeChannel: config.SLACK_FINANCE_CHANNEL, restrictToManager: true, openApprovals: config.SLACK_OPEN_APPROVALS });
+      const bot = new SlackBot({ client: slackApp.client as unknown as SlackChat, gateway: service.gateway, state: service.state, enrollment: service.enrollment, bus: service.bus, log, managerChannel: config.SLACK_MANAGER_CHANNEL, financeChannel: config.SLACK_FINANCE_CHANNEL, restrictToManager: true, openApprovals: config.SLACK_OPEN_APPROVALS });
       registerSlackHandlers(slackApp, bot, log);
-      const noSlack = ["emp_priya", "emp_jordan"].filter((id) => !gw.enrollment.employees.get(id)?.slack_user_id);
+      const noSlack = ["emp_priya", "emp_jordan"].filter((id) => !service.enrollment.employees.get(id)?.slack_user_id);
       if (noSlack.length) log.warn(config.SLACK_OPEN_APPROVALS ? "slack: these approvers have no Slack id; with SLACK_OPEN_APPROVALS=true anyone in the channel can resolve for them" : "slack: these approvers have no Slack id, so their escalations can't be resolved from Slack until you set SLACK_ID_*", { approvers: noSlack });
-      gw.slackBot = bot;
+      service.slackBot = bot;
       await slackApp.start();
       log.info("slack: connected (Socket Mode)");
     }
@@ -236,7 +236,7 @@ async function main() {
     log.info("slack: disabled (set SLACK_BOT_TOKEN, SLACK_APP_TOKEN and SLACK_MANAGER_CHANNEL)");
   }
 
-  await gw.start();
+  await service.start();
   const base = config.PUBLIC_BASE_URL ?? `http://localhost:${config.PORT}`;
   log.info("agent side listening", {
     port: config.PORT,
@@ -244,7 +244,7 @@ async function main() {
     sms_webhook: `${base}/sms/inbound`,
     mcp: `${base}/mcp`,
     gateway: config.GATEWAY_URL,
-    negotiator: gw.negotiator.brainName,
+    negotiator: service.negotiator.brainName,
     sms: config.twilioEnabled ? "twilio" : "dry-run (no TWILIO_* set)",
   });
   if (!config.GATEWAY_API_TOKEN) log.warn("GATEWAY_API_TOKEN is empty; the gateway will reject every request (locally its default is dev-token)");
@@ -253,7 +253,7 @@ async function main() {
 
   const shutdown = async (signal: string) => {
     log.info("shutting down", { signal });
-    await gw.stop();
+    await service.stop();
     process.exit(0);
   };
   process.on("SIGINT", () => void shutdown("SIGINT"));
