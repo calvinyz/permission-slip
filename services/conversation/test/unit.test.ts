@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { GoogleVoiceSms, parseGvEmail } from "../src/channels/google-voice.ts";
+import { GoogleVoiceSms, parseGvEmail, parseGvSender } from "../src/channels/google-voice.ts";
 import { silentLogger } from "../src/logger.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -217,6 +217,11 @@ describe("google voice", () => {
   it("stops at the footer when the reply hint is missing", () => {
     const footerOnly = ["<https://voice.google.com>", "Book economy for $480.", "YOUR ACCOUNT <https://voice.google.com> HELP CENTER", "Google LLC"].join("\n");
     assert.equal(parseGvEmail("New text message from (555) 010-0001", footerOnly)?.text, "Book economy for $480.");
+  });
+
+  it("reads the sender from the subject alone", () => {
+    assert.equal(parseGvSender("New text message from (555) 010-0001"), "+15550100001");
+    assert.equal(parseGvSender("Your Google Voice voicemail"), undefined);
   });
 
   it("ignores mail that isn't a text notification", () => {

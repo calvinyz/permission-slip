@@ -18,10 +18,16 @@ export const GV_DOMAIN = "txt.voice.google.com";
 
 const last4 = (phone: string) => `…${phone.slice(-4)}`;
 
+/** The sender's number, from a Google Voice notification's subject line. */
+export function parseGvSender(subject: string): string | undefined {
+  const from = subject.match(/new text messages? from (.+)$/i)?.[1];
+  return from ? normalizePhone(from) : undefined;
+}
+
 /** Pulls the sender's number and the message text out of a Google Voice notification email. */
 export function parseGvEmail(subject: string, body: string): { phone: string; text: string } | undefined {
-  const from = subject.match(/new text messages? from (.+)$/i)?.[1];
-  if (!from) return undefined;
+  const phone = parseGvSender(subject);
+  if (!phone) return undefined;
   const lines = body.replace(/\r\n/g, "\n").split("\n");
   const start = lines.findIndex((l) => l.includes("voice.google.com>"));
   // The message ends at Google's reply hint or, when that line is missing, at the footer.
@@ -30,7 +36,7 @@ export function parseGvEmail(subject: string, body: string): { phone: string; te
     .slice(start + 1, end === -1 ? undefined : end)
     .join("\n")
     .trim();
-  return text ? { phone: normalizePhone(from), text } : undefined;
+  return text ? { phone, text } : undefined;
 }
 
 function textPart(node: MessageStructureObject | undefined): string | undefined {
@@ -128,9 +134,16 @@ export class GoogleVoiceSms implements SmsSender {
           if (this.seen.has(uid)) continue;
           this.seen.add(uid);
           const msg = await imap.fetchOne(String(uid), { uid: true, envelope: true, internalDate: true, bodyStructure: true }, { uid: true });
-          if (!msg || !msg.internalDate || new Date(msg.internalDate).getTime() < this.startedAt) continue;
+          if (!msg || !msg.internalDate) continue;
           const from = msg.envelope?.from?.[0]?.address ?? "";
           if (!from.toLowerCase().endsWith(`@${GV_DOMAIN}`)) continue;
+          if (new Date(msg.internalDate).getTime() < this.startedAt) {
+            // Texts from before a restart aren't answered again, but their reply addresses are kept,
+            // so follow-ups (settled, card frozen) still reach agents that texted earlier.
+            const phone = parseGvSender(msg.envelope?.subject ?? "");
+            if (phone) this.replyTo.set(phone, { address: from, messageId: msg.envelope?.messageId });
+            continue;
+          }
           const part = textPart(msg.bodyStructure);
           if (!part) continue;
           const { content } = await imap.download(String(uid), part, { uid: true });
