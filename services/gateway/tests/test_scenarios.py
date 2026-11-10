@@ -1,3 +1,5 @@
+import pytest
+
 """The five demo scenarios, end to end through the HTTP API. Every response and event is contract-checked by the app."""
 
 from gateway.app import StreamTickets
@@ -204,3 +206,42 @@ def test_overcharge_toggle_is_local_only(app):
         assert operator.put("/merchant/settings", json={"overcharge_usd": 0}).status_code == 200
         tunneled = operator.put("/merchant/settings", json={"overcharge_usd": 140}, headers={"X-Forwarded-For": "203.0.113.7"})
         assert tunneled.status_code == 403, "a request relayed through a tunnel is not local"
+
+
+def round_trip(**overrides):
+    req = example("01-happy-path.request.json") | {
+        "request_id": f"req_rt_{overrides.pop('suffix')}",
+        "description": "United UA 1234 PHL to SFO Nov 17 7:05 AM, return UA 567 SFO to PHL Nov 19 6:10 PM, economy",
+        "travel": {"cabin_class": "economy", "origin": "PHL", "destination": "SFO", "depart_date": "2026-11-17", "return_date": "2026-11-19"},
+    }
+    return req | overrides
+
+
+@pytest.mark.parametrize("amount", [612.00, 880.00])
+def test_round_trip_within_hidden_cap_is_approved(client, amount):
+    d = client.post("/v1/requests", json=round_trip(suffix=str(int(amount)), amount_usd=amount)).json()
+    assert d["status"] == "approved", d["reason"]
+    assert d["card"]["limit_usd"] == amount
+    cap = next(t for t in d["policy_trace"] if t["rule"] == "travel.air.cap")
+    assert "round trip" in cap["detail"], "finance sees which cap applied"
+
+
+@pytest.mark.parametrize("amount", [950.00, 1400.00])
+def test_round_trip_over_the_limit_never_reveals_it(client, amount):
+    d = client.post("/v1/requests", json=round_trip(suffix=str(int(amount)), amount_usd=amount)).json()
+    assert d["status"] == "denied"
+    assert "$" not in d["reason"], f"agent-facing reason must not reveal limits: {d['reason']}"
+
+
+def test_round_trip_first_class_counters_with_a_round_trip_fare(client):
+    req = round_trip(suffix="first", amount_usd=2400.00, description="United PHL to SFO Nov 17, return Nov 19, first class")
+    req["travel"] = req["travel"] | {"cabin_class": "first"}
+    d = client.post("/v1/requests", json=req).json()
+    assert d["status"] == "counter"
+    assert d["counteroffer"]["amount_usd"] == 640.00
+    assert "round trip" in d["counteroffer"]["description"] and d["counteroffer"]["travel"]["return_date"] == "2026-11-19"
+
+
+def test_one_way_fare_denials_also_hide_the_numbers(client):
+    d = client.post("/v1/requests", json=example("01-happy-path.request.json") | {"request_id": "req_ow_high", "amount_usd": 590.00}).json()
+    assert d["status"] == "denied" and "$" not in d["reason"]

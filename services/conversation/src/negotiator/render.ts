@@ -68,12 +68,15 @@ function sentence(s: string | undefined): string {
 
 const tidy = (s: string) => s.replace(/\s+/g, " ").trim();
 
-export function renderDecision(decision: Decision, opts: RenderOptions = {}, details?: CardDetails): string {
+/** With the request at hand, an approval names what was approved, e.g. the flights an agent picked. */
+export function renderDecision(decision: Decision, opts: RenderOptions = {}, details?: CardDetails, request?: { description: string }): string {
   const reason = sentence(decision.reason);
   switch (decision.status) {
     case "approved": {
       const card = decision.card ? ` ${describeCard(decision.card, details, opts)}` : " The card is being issued; ask me for it in a moment.";
-      return tidy(`Approved. ${reason}${card}`);
+      // "Approved." always leads, so agents and people can key on it; the itinerary follows.
+      const what = request?.description ? `Approved. ${sentence(request.description)}` : "Approved.";
+      return tidy(`${what} ${reason}${card}`);
     }
     case "counter": {
       const offer = describeCounteroffer(decision.counteroffer);
@@ -96,12 +99,13 @@ export function renderEscalationOutcome(decision: Decision, opts: RenderOptions 
   return renderDecision(decision, opts, details);
 }
 
-/** The employee's confirmation once the charge is matched and coded. */
-export function renderReconciled(txn: Partial<Transaction>, fallbackMerchant?: string): string {
+/** The employee's confirmation once the charge is matched and coded, naming what was booked when known. */
+export function renderReconciled(txn: Partial<Transaction>, fallbackMerchant?: string, description?: string): string {
   const merchant = txn.merchant || fallbackMerchant;
   const what = [money(txn.amount_usd), merchant ? `at ${merchant}` : undefined].filter(Boolean).join(" ") || "Your purchase";
   const gl = txn.coding?.gl_account;
-  return `Done: ${what} settled and matched to its approval${gl ? `, coded to ${gl}` : ""}. No receipt or expense report needed.`;
+  const booked = description ? `Booked and paid: ${sentence(description)} ` : "Done: ";
+  return `${booked}${what} settled and matched to its approval${gl ? `, coded to ${gl}` : ""}. No receipt or expense report needed.`;
 }
 
 /** The gateway's mismatch reasons name contract fields; make them read naturally in a text. */

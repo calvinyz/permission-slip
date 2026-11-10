@@ -108,14 +108,16 @@ def verify(req: dict) -> list[dict]:
 
     travel = req.get("travel") or {}
     route = (travel.get("origin"), travel.get("destination"))
-    if req["merchant_category"] == "airlines" and route in seed.FARE_HISTORY:
-        median = statistics.median(seed.FARE_HISTORY[route])
+    round_trip = bool(travel.get("return_date"))
+    history = (seed.ROUND_TRIP_FARE_HISTORY if round_trip else seed.FARE_HISTORY).get(route)
+    if req["merchant_category"] == "airlines" and history:
+        median = statistics.median(history)
         ok = req["amount_usd"] <= median * 1.25 or travel.get("cabin_class", "economy") != "economy"
         out.append(
             {
                 "check": "price.fare_history",
                 "result": "verified" if ok else "failed",
-                "detail": f"{'-'.join(route)} median {usd(median)}; requested {usd(req['amount_usd'])}",
+                "detail": f"{'-'.join(route)} {'round-trip ' if round_trip else ''}median {usd(median)}; requested {usd(req['amount_usd'])}",
             }
         )
     return out
@@ -146,6 +148,9 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
 
     failed = [v for v in verification if v["result"] == "failed"]
     if not rule("claims.verified", not failed, "; ".join(v["detail"] for v in failed) or "all claims verified"):
+        # Fare history is internal; tell the agent the outcome without the numbers it could price against.
+        if failed[0]["check"] == "price.fare_history":
+            return deny("This fare is well above recent prices for the route, so it can't be approved.")
         return deny(f"Could not verify: {failed[0]['detail']}.")
 
     if not rule("merchant.blocked", req["merchant"] not in p["blocked_merchants"], req["merchant"]):
@@ -164,21 +169,26 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
         mismatch = cabin == "economy" and PREMIUM_CABIN.search(normalize(text))
         if not rule("claims.consistency", not mismatch, f"declared {cabin}" + (f", text says '{mismatch.group(0)}'" if mismatch else "")):
             return deny(f"The request declares economy but describes '{mismatch.group(0)}'.")
+        round_trip = bool(travel.get("return_date"))
         if not rule("travel.air.class", cabin in p["air_cabin_classes"], cabin):
-            quote = seed.ECONOMY_QUOTES.get((travel.get("origin"), travel.get("destination")))
+            quotes = seed.ROUND_TRIP_ECONOMY_QUOTES if round_trip else seed.ECONOMY_QUOTES
+            quote = quotes.get((travel.get("origin"), travel.get("destination")))
             if quote:
+                dates = travel.get("depart_date", "") + (f", returning {travel['return_date']}" if round_trip else "")
                 offer = {
                     "merchant": quote["merchant"],
                     "merchant_category": "airlines",
                     "amount_usd": quote["amount_usd"],
-                    "description": f"{travel['origin']} to {travel['destination']}, economy, {travel.get('depart_date', '')}".strip(", "),
+                    "description": f"{travel['origin']} to {travel['destination']}{' round trip' if round_trip else ''}, economy, {dates}".strip(", "),
                     "travel": {**travel, "cabin_class": "economy"},
                     "reason": f"Policy allows economy only; economy at {usd(quote['amount_usd'])} is within policy and can be booked now.",
                 }
                 return Outcome("counter", offer["reason"], verification, trace, counteroffer=offer)
             return deny(f"Policy allows economy only; {cabin.replace('_', ' ')} is out of policy.")
-        if not rule("travel.air.cap", amount <= p["air_cap_usd"], f"{usd(amount)} <= {usd(p['air_cap_usd'])}"):
-            return deny(f"Flights are capped at {usd(p['air_cap_usd'])}.")
+        cap = p["air_round_trip_cap_usd"] if round_trip else p["air_cap_usd"]
+        kind = "round trip" if round_trip else "one way"
+        if not rule("travel.air.cap", amount <= cap, f"{usd(amount)} <= {usd(cap)} ({kind})"):
+            return deny("This fare is above the travel policy limit for this trip.")
 
     if category == "lodging":
         nights = travel.get("nights")

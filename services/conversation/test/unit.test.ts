@@ -123,6 +123,12 @@ describe("render", () => {
   it("escalation outcome, reconciliation and suspension wording", () => {
     assert.match(renderEscalationOutcome(APPROVED, {}, DETAILS), /^Your manager approved it\. .*Card number 4242 4242 4242 1234/);
     assert.equal(renderEscalationOutcome({ ...APPROVED, status: "denied", reason: "No budget", card: null }), "Your manager declined it. No budget.");
+    const trip = { description: "United UA 1234 PHL to SFO Nov 17 7:05 AM, return UA 567 Nov 19 6:10 PM" };
+    assert.match(renderDecision(APPROVED, {}, undefined, trip), /^Approved\. United UA 1234 PHL to SFO Nov 17 7:05 AM, return UA 567 Nov 19 6:10 PM\. /);
+    assert.equal(
+      renderReconciled({ amount_usd: 612, merchant: "United Airlines", coding: { gl_account: "6110 Travel - Airfare" } } as never, undefined, trip.description),
+      "Booked and paid: United UA 1234 PHL to SFO Nov 17 7:05 AM, return UA 567 Nov 19 6:10 PM. $612 at United Airlines settled and matched to its approval, coded to 6110 Travel - Airfare. No receipt or expense report needed.",
+    );
     assert.equal(renderReconciled({ amount_usd: 480, merchant: "Demo Air", coding: { gl_account: "6110 Travel - Airfare" } } as never), "Done: $480 at Demo Air settled and matched to its approval, coded to 6110 Travel - Airfare. No receipt or expense report needed.");
     assert.equal(renderSuspension({ last4: "4242", limit_usd: 480 }, "Settlement mismatch: amount_usd expected $480.00, got $620.00", { amount_usd: 620 }), "Heads up: the card ending 4242 was suspended. The merchant charged $620 against an approved $480. Finance has been alerted.");
     assert.equal(renderSuspension({ last4: "4242" }, "Settlement mismatch: amount_usd expected $480.00, got $620.00"), "Heads up: the card ending 4242 was suspended (Settlement mismatch: amount expected $480.00, got $620.00). Finance has been alerted.");

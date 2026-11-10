@@ -205,7 +205,7 @@ export class Negotiator {
           state.markNotified(request.request_id, { notified_status: decision.status });
           const details = await this.deps.requests.cardDetails(agent, request.request_id, decision);
           log.info("negotiator: decision relayed", { agent_id: agent.agent_id, request_id: request.request_id, status: decision.status, ms: Date.now() - started });
-          return { replies: [say(renderDecision(decision, renderOpts, details), request.request_id)], request_id: request.request_id, decision, action: "submit" };
+          return { replies: [say(renderDecision(decision, renderOpts, details, request), request.request_id)], request_id: request.request_id, decision, action: "submit" };
         }
       }
     } catch (err) {

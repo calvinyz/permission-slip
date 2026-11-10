@@ -26,6 +26,8 @@ CALENDAR = {
 POLICY = {
     "air_cabin_classes": {"economy"},
     "air_cap_usd": 600.00,
+    # Round trips have their own cap. Neither cap is ever shown to an agent.
+    "air_round_trip_cap_usd": 900.00,
     "lodging_nightly_cap_usd": 250.00,
     "auto_approve_limit_usd": 1000.00,
     "blocked_merchants": {"Lucky Star Casino"},
@@ -40,8 +42,14 @@ TEAM_BUDGETS_REMAINING = {
 FARE_HISTORY = {
     ("PHL", "SFO"): [430.00, 455.00, 470.00, 495.00, 510.00],
 }
+ROUND_TRIP_FARE_HISTORY = {
+    ("PHL", "SFO"): [610.00, 680.00, 720.00, 760.00, 830.00],
+}
 ECONOMY_QUOTES = {
     ("PHL", "SFO"): {"merchant": "United Airlines", "amount_usd": 480.00},
+}
+ROUND_TRIP_ECONOMY_QUOTES = {
+    ("PHL", "SFO"): {"merchant": "United Airlines", "amount_usd": 640.00},
 }
 
 # Name patterns for well-known merchants, so a purchase cannot be filed under the wrong category.

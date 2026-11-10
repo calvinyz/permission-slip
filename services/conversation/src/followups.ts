@@ -146,6 +146,6 @@ export class Followups {
     const rec = this.findRecord(e);
     if (!rec || rec.channel === "mcp" || rec.notified_reconciled) return;
     this.deps.state.markNotified(rec.request.request_id, { notified_reconciled: true });
-    await this.send(rec, renderReconciled((e.data.transaction ?? {}) as Partial<Transaction>, rec.request.merchant));
+    await this.send(rec, renderReconciled((e.data.transaction ?? {}) as Partial<Transaction>, rec.request.merchant, rec.request.description));
   }
 }

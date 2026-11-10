@@ -73,8 +73,9 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       await until(() => typesOf(rid).includes("txn.reconciled"), 8000, "txn.reconciled");
       const order = typesOf(rid).filter((t) => !t.startsWith("agent."));
       assert.deepEqual(order, ["request.received", "claims.verified", "policy.decided", "mandate.signed", "card.issued", "txn.settled", "txn.reconciled"]);
-      const done = await until(() => mayaTexts().find((m) => m.startsWith("Done:")), 8000, "settlement confirmation");
-      assert.equal(done, "Done: $480 at Demo Air (test merchant) settled and matched to its approval, coded to 6110 Travel - Airfare. No receipt or expense report needed.");
+      const done = await until(() => mayaTexts().find((m) => m.startsWith("Booked and paid:")), 8000, "settlement confirmation");
+      assert.ok(done.includes(rec.request.description), "the confirmation names what was booked");
+      assert.ok(done.endsWith("$480 at Demo Air (test merchant) settled and matched to its approval, coded to 6110 Travel - Airfare. No receipt or expense report needed."));
     });
   });
 
