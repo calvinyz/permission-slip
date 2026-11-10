@@ -80,10 +80,10 @@ function request(over: Partial<PurchaseRequest>): PurchaseRequest {
     merchant: "United Airlines",
     merchant_category: "airlines",
     amount_usd: 480,
-    description: "PHL to SFO, economy, Tue Oct 27 (smoke test)",
+    description: "PHL to SFO, economy, Tue Nov 17 (smoke test)",
     justification: "Acme customer meeting",
-    travel: { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" },
-    claims: { meeting: "Acme", date: "2026-10-27" },
+    travel: { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" },
+    claims: { meeting: "Acme", date: "2026-11-17" },
     transcript: [{ role: "personal_agent", text: "Smoke test from the conversation service." }],
     ...over,
   };
@@ -156,7 +156,7 @@ if (approved) {
 
 console.log("\n4. POST /v1/requests (scenario 2 first class, expect counter)");
 {
-  const r = await rawCall("POST", "/v1/requests", request({ employee_id: "emp_noah", agent_id: "muse:conversation-smoke", channel: "sms", amount_usd: 1850, description: "PHL to SFO, first class (smoke test)", travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" } }));
+  const r = await rawCall("POST", "/v1/requests", request({ employee_id: "emp_noah", agent_id: "muse:conversation-smoke", channel: "sms", amount_usd: 1850, description: "PHL to SFO, first class (smoke test)", travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" } }));
   checkDecision(r.json, "counter");
   const d = r.json as { status?: string; counteroffer?: unknown };
   if (d.status === "counter" && d.counteroffer) ok(`counter with offer ${JSON.stringify(d.counteroffer).slice(0, 160)}`);
@@ -167,7 +167,7 @@ if (values.escalate) {
   console.log("\n5. Escalation: $2,400 conference, then POST /v1/escalations/{id}/resolve as the approver");
   try {
     const d = await client.submitRequest(
-      request({ merchant: "AI Engineer Summit", merchant_category: "conferences", amount_usd: 2400, description: "AI Engineer Summit full pass (smoke test)", justification: "AI Engineer Summit", travel: undefined, claims: { event: "AI Engineer Summit", date: "2026-11-03" } }),
+      request({ merchant: "AI Engineer Summit", merchant_category: "conferences", amount_usd: 2400, description: "AI Engineer Summit full pass (smoke test)", justification: "AI Engineer Summit", travel: undefined, claims: { event: "AI Engineer Summit", date: "2026-11-24" } }),
     );
     if (d.status !== "escalated" || !d.escalation) bad(`expected escalated with an escalation, got ${d.status}`);
     else {
@@ -217,7 +217,7 @@ if (process.env.ANTHROPIC_API_KEY) {
     const t0 = Date.now();
     const action = await brain.decide({
       company: "Lumen Labs", employeeName: "Maya Chen", employeeId: "emp_maya", agentLabel: "smoke", channel: "sms", merchantCategories: cats, homeAirport: "PHL",
-      turns: [{ role: "agent", text: "Book a United Airlines economy flight to SFO for $480 for the Acme meeting on 2026-10-27.", ts: new Date().toISOString() }],
+      turns: [{ role: "agent", text: "Book a United Airlines economy flight to SFO for $480 for the Acme meeting on 2026-11-17.", ts: new Date().toISOString() }],
       requests: [], now: new Date(), timeZone: "America/Los_Angeles",
       validateSubmit: (i) => { const r = validateSubmitInput(i, cats); return r.ok ? undefined : r.error; },
     });

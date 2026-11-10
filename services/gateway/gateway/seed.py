@@ -15,11 +15,11 @@ EMPLOYEES = {
 
 CALENDAR = {
     "emp_maya": [
-        {"title": "Acme customer meeting", "date": "2026-10-27", "city": "San Francisco"},
-        {"title": "AI Engineer Summit", "date": "2026-11-03", "city": "San Francisco"},
+        {"title": "Acme customer meeting", "date": "2026-11-17", "city": "San Francisco"},
+        {"title": "AI Engineer Summit", "date": "2026-11-24", "city": "San Francisco"},
     ],
     "emp_noah": [
-        {"title": "Acme customer meeting", "date": "2026-10-27", "city": "San Francisco"},
+        {"title": "Acme customer meeting", "date": "2026-11-17", "city": "San Francisco"},
     ],
 }
 

@@ -146,8 +146,8 @@ export function testConfig(env: Record<string, string> = {}) {
   });
 }
 
-/** A fixed "now": Wednesday Oct 21, 2026 10:00 PT, so "Tuesday" resolves to 2026-10-27 (the seed calendar's Acme meeting). */
-export const FIXED_NOW = () => new Date("2026-10-21T17:00:00Z");
+/** A fixed "now": Wednesday Nov 11, 2026 10:00 PT, so "Tuesday" resolves to 2026-11-17 (the seed calendar's Acme meeting). */
+export const FIXED_NOW = () => new Date("2026-11-11T17:00:00Z");
 
 export async function startConversation(gatewayUrl: string, overrides: ConversationServiceOverrides = {}, env: Record<string, string> = {}) {
   const config = testConfig({ GATEWAY_URL: gatewayUrl, GATEWAY_API_TOKEN: GATEWAY_TOKEN, ...env });

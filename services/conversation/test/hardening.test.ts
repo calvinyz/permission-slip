@@ -28,9 +28,9 @@ const ctx = (text: string): BrainContext => ({
 });
 
 const escalated = (request_id = "req_x") => ({
-  request_id, status: "escalated", reason: "Over budget", policy_trace: [], verification: [], policy_version: "1", decided_at: "2026-10-21T17:00:00Z",
+  request_id, status: "escalated", reason: "Over budget", policy_trace: [], verification: [], policy_version: "1", decided_at: "2026-11-11T17:00:00Z",
   counteroffer: null, mandate_id: null, card: null,
-  escalation: { escalation_id: "esc_1", request_id, approver_id: "emp_priya", status: "open", opened_at: "2026-10-21T17:00:00Z" },
+  escalation: { escalation_id: "esc_1", request_id, approver_id: "emp_priya", status: "open", opened_at: "2026-11-11T17:00:00Z" },
 });
 
 function sseResponse(frames: string[], keepOpen = false): Response {
@@ -47,13 +47,13 @@ const frame = (id: number, type: string, ts: string, request_id = "req_1") => `i
 describe("event stream resilience", () => {
   it("a restarted gateway reusing SSE ids still gets its new events through", async () => {
     const bus = new EventBus();
-    const now = Date.parse("2026-10-21T17:00:00Z");
+    const now = Date.parse("2026-11-11T17:00:00Z");
     let call = 0;
     const fetchImpl = (async () => {
       call++;
       return call === 1
-        ? sseResponse([frame(1, "request.received", "2026-10-21T17:00:01Z"), frame(2, "policy.decided", "2026-10-21T17:00:02Z")])
-        : sseResponse([frame(1, "request.received", "2026-10-21T17:05:01Z", "req_2"), frame(2, "policy.decided", "2026-10-21T17:05:02Z", "req_2")], true);
+        ? sseResponse([frame(1, "request.received", "2026-11-11T17:00:01Z"), frame(2, "policy.decided", "2026-11-11T17:00:02Z")])
+        : sseResponse([frame(1, "request.received", "2026-11-11T17:05:01Z", "req_2"), frame(2, "policy.decided", "2026-11-11T17:05:02Z", "req_2")], true);
     }) as unknown as typeof fetch;
     const s = new GatewayEventStream({ url: "http://x/v1/events", headers: {}, bus, fetchImpl, now: () => now, maxBackoffMs: 10 });
     s.start();
@@ -63,15 +63,15 @@ describe("event stream resilience", () => {
   });
 
   it("a replay of the same events (same content) is de-duplicated", () => {
-    const e = normalizeGatewayEvent({ id: "1", event: "card.issued", data: JSON.stringify({ request_id: "r", ts: "2026-10-21T00:00:00Z", data: { a: 1 } }) })!;
+    const e = normalizeGatewayEvent({ id: "1", event: "card.issued", data: JSON.stringify({ request_id: "r", ts: "2026-11-11T00:00:00Z", data: { a: 1 } }) })!;
     assert.equal(eventKey(e, true, 1), eventKey({ ...e }, true, 2));
     assert.notEqual(eventKey(e, false, 1), eventKey(e, false, 2), "without timestamps, ids are scoped to the connection");
   });
 
   it("history from before startup is marked replayed; Slack ignores it", async () => {
     const bus = new EventBus();
-    const now = Date.parse("2026-10-21T17:00:00Z");
-    const fetchImpl = (async () => sseResponse([frame(7, "escalation.opened", "2026-10-21T15:00:00Z", "req_old"), frame(8, "escalation.opened", "2026-10-21T17:00:01Z", "req_new")], true)) as unknown as typeof fetch;
+    const now = Date.parse("2026-11-11T17:00:00Z");
+    const fetchImpl = (async () => sseResponse([frame(7, "escalation.opened", "2026-11-11T15:00:00Z", "req_old"), frame(8, "escalation.opened", "2026-11-11T17:00:01Z", "req_new")], true)) as unknown as typeof fetch;
     const slack = new FakeSlack();
     const gateway = { getRequest: async (id: string) => escalated(id) } as unknown as GatewayApi;
     const bot = new SlackBot({ client: slack, gateway, state: new StateStore(), enrollment: testEnrollment(), bus, log: silentLogger, managerChannel: "C", restrictToManager: true });
@@ -88,16 +88,16 @@ describe("event stream resilience", () => {
 
   it("after a gateway reset (seq restarts at 1) reconnects replay everything, deduped by event_id", async () => {
     const bus = new EventBus();
-    const now = Date.parse("2026-10-21T17:00:00Z");
+    const now = Date.parse("2026-11-11T17:00:00Z");
     const ev = (seq: number, event_id: string, request_id: string, ts: string) => `id: ${seq}\nevent: request.received\ndata: ${JSON.stringify({ event_id, seq, type: "request.received", ts, request_id, data: {} })}\n\n`;
     const sent: (string | null)[] = [];
     let call = 0;
     const fetchImpl = (async (_u: string, init: RequestInit) => {
       call++;
       sent.push(new Headers(init.headers).get("Last-Event-ID"));
-      if (call === 1) return sseResponse([ev(1, "evt_a", "req_a", "2026-10-21T17:00:01Z"), ev(2, "evt_b", "req_b", "2026-10-21T17:00:02Z")]);
-      if (call === 2) return sseResponse([ev(1, "evt_a", "req_a", "2026-10-21T17:00:01Z"), ev(2, "evt_b", "req_b", "2026-10-21T17:00:02Z"), ev(3, "evt_c", "req_c", "2026-10-21T17:00:03Z")]);
-      return sseResponse([ev(1, "evt_new", "req_new", "2026-10-21T17:09:00Z")], true);
+      if (call === 1) return sseResponse([ev(1, "evt_a", "req_a", "2026-11-11T17:00:01Z"), ev(2, "evt_b", "req_b", "2026-11-11T17:00:02Z")]);
+      if (call === 2) return sseResponse([ev(1, "evt_a", "req_a", "2026-11-11T17:00:01Z"), ev(2, "evt_b", "req_b", "2026-11-11T17:00:02Z"), ev(3, "evt_c", "req_c", "2026-11-11T17:00:03Z")]);
+      return sseResponse([ev(1, "evt_new", "req_new", "2026-11-11T17:09:00Z")], true);
     }) as unknown as typeof fetch;
     const s = new GatewayEventStream({ url: "http://x", headers: {}, bus, fetchImpl, now: () => now, maxBackoffMs: 10 });
     s.start();
@@ -141,16 +141,16 @@ describe("scripted dates", () => {
   const brain = new ScriptedBrain();
   const date = async (t: string) => { const a = await brain.decide(ctx(t)); return a.type === "submit" ? a.input.claims.date : a.type; };
   it("doesn't read hotel names as months", async () => {
-    assert.equal(await date("Book the Marriott 2 nights for $200 for the Acme meeting Tuesday"), "2026-10-27");
+    assert.equal(await date("Book the Marriott 2 nights for $200 for the Acme meeting Tuesday"), "2026-11-17");
   });
   it("uses the meeting's weekday, not the first weekday mentioned", async () => {
-    assert.equal(await date("Fly United Airlines to SFO Monday for $480 for the Acme meeting Tuesday"), "2026-10-27");
+    assert.equal(await date("Fly United Airlines to SFO Monday for $480 for the Acme meeting Tuesday"), "2026-11-17");
   });
   it("reads month names and ordinals", async () => {
-    assert.equal(await date("United Airlines PHL to SFO $480 for the Acme meeting on November 3rd"), "2026-11-03");
+    assert.equal(await date("United Airlines PHL to SFO $480 for the Acme meeting on November 17th"), "2026-11-17");
   });
   it("DEMO_TODAY validates and is optional", () => {
-    assert.equal(loadConfig({ DEMO_TODAY: "2026-10-21" }).DEMO_TODAY, "2026-10-21");
+    assert.equal(loadConfig({ DEMO_TODAY: "2026-11-11" }).DEMO_TODAY, "2026-11-11");
     assert.equal(loadConfig({ DEMO_TODAY: "" }).DEMO_TODAY, undefined);
     assert.throws(() => loadConfig({ DEMO_TODAY: "Tuesday" }));
   });
@@ -207,9 +207,9 @@ describe("email, Slack and dashboard edge cases", () => {
 
 describe("Slack approvals, restarts and masking", () => {
   const escalatedTo = (approver: string, request_id = "req_j") => ({
-    request_id, status: "escalated", reason: "Over budget", policy_trace: [], verification: [], policy_version: "1", decided_at: "2026-10-21T17:00:00Z",
+    request_id, status: "escalated", reason: "Over budget", policy_trace: [], verification: [], policy_version: "1", decided_at: "2026-11-11T17:00:00Z",
     counteroffer: null, mandate_id: null, card: null,
-    escalation: { escalation_id: "esc_j", request_id, approver_id: approver, status: "open", opened_at: "2026-10-21T17:00:00Z" },
+    escalation: { escalation_id: "esc_j", request_id, approver_id: approver, status: "open", opened_at: "2026-11-11T17:00:00Z" },
   });
 
   it("Slack: a click that can't be tied to an employee is refused unless open approvals are on", async () => {
@@ -264,7 +264,7 @@ describe("Slack approvals, restarts and masking", () => {
     const brain = new ScriptedBrain();
     const submit = async (t: string) => { const a = await brain.decide(ctx(t)); assert.equal(a.type, "submit", t); return (a as { input: { description: string; travel?: { cabin_class?: string } } }).input; };
     const a = await submit("Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting Tuesday, no upgrade needed.");
-    assert.equal(a.description, "PHL to SFO, economy, 2026-10-27");
+    assert.equal(a.description, "PHL to SFO, economy, 2026-11-17");
     assert.equal((await submit("United Airlines PHL to SFO, economy, not business class, $480 for the Acme meeting Tuesday")).travel?.cabin_class, "economy");
     assert.equal((await submit("United Airlines PHL to SFO, economy rather than first class, $480 for the Acme meeting Tuesday")).travel?.cabin_class, "economy");
     assert.equal((await submit("United Airlines first class PHL to SFO $1,850 for the Acme meeting Tuesday")).travel?.cabin_class, "first");

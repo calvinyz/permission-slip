@@ -28,7 +28,7 @@ export function buildTools(categories: string[]): Tool[] {
           merchant: { type: "string", description: "Who is being paid, e.g. 'United Airlines'." },
           merchant_category: { type: "string", enum: categories, description: "Category the policy engine uses." },
           amount_usd: { type: "number", description: "Total in US dollars, e.g. 480 or 480.50." },
-          description: { type: "string", description: "One line: what is being bought, e.g. 'PHL to SFO, economy, Tue Oct 27'. Name only the cabin being requested; never mention other cabins, upgrades, or that anything is approved." },
+          description: { type: "string", description: "One line: what is being bought, e.g. 'PHL to SFO, economy, Tue Nov 17'. Name only the cabin being requested; never mention other cabins, upgrades, or that anything is approved." },
           justification: { type: "string", description: "Business reason in the agent's own words (max 1000 characters)." },
           travel: {
             type: "object",

@@ -15,7 +15,7 @@ info:
 
     Conventions:
     - Money is `amount_usd`, a JSON number in dollars with at most 2 decimals.
-    - Timestamps are RFC 3339 UTC strings (`2026-10-27T15:04:05Z`).
+    - Timestamps are RFC 3339 UTC strings (`2026-11-17T15:04:05Z`).
     - IDs are prefixed strings: `req_`, `esc_`, `mdt_`, `card_`, `txn_`,
       `chg_`, `evt_`, `emp_`.
 servers:
@@ -808,10 +808,10 @@ components:
         merchant: United Airlines
         merchant_category: airlines
         amount_usd: 480.00
-        description: PHL to SFO, economy, Tue Oct 27
+        description: PHL to SFO, economy, Tue Nov 17
         justification: Acme customer meeting
-        travel: { cabin_class: economy, origin: PHL, destination: SFO, depart_date: "2026-10-27" }
-        claims: { meeting: Acme, date: "2026-10-27" }
+        travel: { cabin_class: economy, origin: PHL, destination: SFO, depart_date: "2026-11-17" }
+        claims: { meeting: Acme, date: "2026-11-17" }
     ApprovedDecision:
       summary: Scenario 1 decision
       value:
@@ -823,10 +823,10 @@ components:
           - { rule: travel.air.cap, result: pass, detail: "$480.00 <= $600.00" }
         verification:
           - { check: employee.exists, result: verified, detail: "Maya Chen, Engineering" }
-          - { check: calendar.meeting, result: verified, detail: "Acme customer meeting, 2026-10-27, San Francisco" }
+          - { check: calendar.meeting, result: verified, detail: "Acme customer meeting, 2026-11-17, San Francisco" }
           - { check: price.fare_history, result: verified, detail: "PHL-SFO median $455.00; $480.00 within 25%" }
         policy_version: "2026-10-20.1"
-        decided_at: "2026-10-21T15:00:00Z"
+        decided_at: "2026-11-11T15:00:00Z"
         counteroffer: null
         escalation: null
         mandate_id: mdt_example

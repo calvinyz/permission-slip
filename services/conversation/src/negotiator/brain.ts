@@ -124,7 +124,7 @@ export function validateSubmitInput(input: unknown, categories: string[]): { ok:
   return { ok: true, value: v };
 }
 
-/** "Tuesday, October 21, 2026 (2026-10-21)" in the given time zone. */
+/** "Wednesday, November 11, 2026 (2026-11-11)" in the given time zone. */
 export function describeToday(now: Date, timeZone: string): string {
   const long = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone });
   return `${long} (${isoDateInZone(now, timeZone)})`;

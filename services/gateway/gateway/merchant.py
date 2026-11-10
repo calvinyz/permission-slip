@@ -18,7 +18,7 @@ CATALOG = [
     {
         "item_id": "flight_phl_sfo_economy",
         "title": "PHL → SFO · Economy",
-        "subtitle": "Tue Oct 27 · 7:05 AM nonstop",
+        "subtitle": "Tue Nov 17 · 7:05 AM nonstop",
         "merchant": "Demo Air",
         "merchant_category": "airlines",
         "price_usd": 480.00,
@@ -26,7 +26,7 @@ CATALOG = [
     {
         "item_id": "flight_phl_sfo_first",
         "title": "PHL → SFO · First",
-        "subtitle": "Tue Oct 27 · 7:05 AM nonstop",
+        "subtitle": "Tue Nov 17 · 7:05 AM nonstop",
         "merchant": "Demo Air",
         "merchant_category": "airlines",
         "price_usd": 1850.00,
@@ -34,7 +34,7 @@ CATALOG = [
     {
         "item_id": "conf_ai_engineer_summit",
         "title": "AI Engineer Summit · Full pass",
-        "subtitle": "Nov 3–4 · San Francisco",
+        "subtitle": "Nov 24–25 · San Francisco",
         "merchant": "Demo Events",
         "merchant_category": "conferences",
         "price_usd": 2400.00,

@@ -91,7 +91,7 @@ export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
         merchant: z.string().min(1).max(200).describe("Who is being paid, e.g. 'United Airlines'."),
         merchant_category: z.enum(deps.merchantCategories as [string, ...string[]]).describe("Purchase category."),
         amount_usd: z.number().positive().max(100_000).describe("Total in US dollars, e.g. 480."),
-        description: z.string().min(1).max(1000).describe("What is being bought, e.g. 'PHL to SFO, economy, Tue Oct 27'."),
+        description: z.string().min(1).max(1000).describe("What is being bought, e.g. 'PHL to SFO, economy, Tue Nov 17'."),
         justification: z.string().min(1).max(1000).describe("Business reason, in the user's words."),
         meeting: z.string().max(200).optional().describe("Meeting this is for, e.g. 'Acme'."),
         event: z.string().max(200).optional().describe("Conference or event this is for, e.g. 'AI Engineer Summit'."),

@@ -7,16 +7,16 @@
   "merchant": "United Airlines",
   "merchant_category": "airlines",
   "amount_usd": 480.0,
-  "description": "PHL to SFO, economy, 2026-10-27",
+  "description": "PHL to SFO, economy, 2026-11-17",
   "justification": "Acme customer meeting",
   "travel": {
     "cabin_class": "economy",
     "origin": "PHL",
     "destination": "SFO",
-    "depart_date": "2026-10-27"
+    "depart_date": "2026-11-17"
   },
   "claims": {
     "meeting": "Acme",
-    "date": "2026-10-27"
+    "date": "2026-11-17"
   }
 }

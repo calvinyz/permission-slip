@@ -105,7 +105,7 @@ def test_rejects_bad_body_and_missing_token(client):
 
 
 def test_unverifiable_meeting_is_denied(client):
-    req = example("01-happy-path.request.json") | {"request_id": "req_fake_meeting", "claims": {"meeting": "Globex", "date": "2026-10-27"}}
+    req = example("01-happy-path.request.json") | {"request_id": "req_fake_meeting", "claims": {"meeting": "Globex", "date": "2026-11-17"}}
     d = client.post("/v1/requests", json=req).json()
     assert d["status"] == "denied" and "Globex" in d["reason"]
 

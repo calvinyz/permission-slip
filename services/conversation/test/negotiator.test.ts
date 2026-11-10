@@ -20,7 +20,7 @@ function ctx(turns: Partial<ConversationTurn>[], extra: Partial<BrainContext> = 
     agentLabel: "Muse (Maya)",
     channel: "sms",
     merchantCategories: cats,
-    turns: turns.map((t) => ({ role: "agent", text: "", ts: "2026-10-21T17:00:00Z", ...t })) as ConversationTurn[],
+    turns: turns.map((t) => ({ role: "agent", text: "", ts: "2026-11-11T17:00:00Z", ...t })) as ConversationTurn[],
     requests: [],
     now: FIXED_NOW(),
     timeZone: "America/Los_Angeles",
@@ -35,7 +35,7 @@ function ctx(turns: Partial<ConversationTurn>[], extra: Partial<BrainContext> = 
 
 describe("dates", () => {
   it("describes today in Pacific time", () => {
-    assert.equal(describeToday(FIXED_NOW(), "America/Los_Angeles"), "Wednesday, October 21, 2026 (2026-10-21)");
+    assert.equal(describeToday(FIXED_NOW(), "America/Los_Angeles"), "Wednesday, November 11, 2026 (2026-11-11)");
   });
 });
 
@@ -49,7 +49,7 @@ describe("scripted brain", () => {
     assert.equal(a.input.merchant, "United Airlines");
     assert.equal(a.input.merchant_category, "airlines");
     assert.equal(a.input.amount_usd, 480);
-    assert.deepEqual(a.input.claims, { meeting: "Acme", date: "2026-10-27" });
+    assert.deepEqual(a.input.claims, { meeting: "Acme", date: "2026-11-17" });
   });
 
   it("asks for missing fields, then combines details across messages", async () => {
@@ -69,7 +69,7 @@ describe("scripted brain", () => {
   it("accepts a counteroffer with YES", async () => {
     const a = await brain.decide(
       ctx([{ text: "YES" }], {
-        requests: [{ request_id: "req_1", merchant: "United Airlines", merchant_category: "airlines", amount_usd: 1450, description: "first class", justification: "Acme meeting", claims: { meeting: "Acme", date: "2026-10-27" }, travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" }, status: "counter", counteroffer: { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", reason: "Economy only" } }],
+        requests: [{ request_id: "req_1", merchant: "United Airlines", merchant_category: "airlines", amount_usd: 1450, description: "first class", justification: "Acme meeting", claims: { meeting: "Acme", date: "2026-11-17" }, travel: { cabin_class: "first", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" }, status: "counter", counteroffer: { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", reason: "Economy only" } }],
       }),
     );
     assert.equal(a.type, "submit");
@@ -77,9 +77,9 @@ describe("scripted brain", () => {
       assert.equal(a.input.amount_usd, 480);
       assert.equal(a.input.description, "PHL to SFO, economy");
       assert.equal(a.input.parent_request_id, "req_1");
-      assert.deepEqual(a.input.travel, { origin: "PHL", destination: "SFO", depart_date: "2026-10-27", cabin_class: "economy" }, "never resubmits the rejected cabin");
+      assert.deepEqual(a.input.travel, { origin: "PHL", destination: "SFO", depart_date: "2026-11-17", cabin_class: "economy" }, "never resubmits the rejected cabin");
       assert.equal(a.input.merchant, "United Airlines");
-      assert.deepEqual(a.input.claims, { meeting: "Acme", date: "2026-10-27" });
+      assert.deepEqual(a.input.claims, { meeting: "Acme", date: "2026-11-17" });
     }
   });
 
@@ -135,7 +135,7 @@ const toolUse = (input: unknown, name = "submit_purchase_request") => ({ type: "
 const text = (t: string) => ({ type: "text", text: t, citations: null }) as unknown as Anthropic.ContentBlock;
 
 describe("llm brain", () => {
-  const good = { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", justification: "Acme customer meeting", travel: { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" }, claims: { meeting: "Acme", date: "2026-10-27" } };
+  const good = { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy", justification: "Acme customer meeting", travel: { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" }, claims: { meeting: "Acme", date: "2026-11-17" } };
 
   it("returns submit for a valid tool call and sends the right request", async () => {
     const client = fakeClient([[text("Submitting."), toolUse(good)]]);
@@ -147,7 +147,7 @@ describe("llm brain", () => {
     assert.deepEqual(call.tool_choice, { type: "auto", disable_parallel_tool_use: true });
     assert.deepEqual(call.tools?.map((t) => (t as { name: string }).name), ["submit_purchase_request", "get_request_status"]);
     assert.match(String(call.system), /cannot approve/);
-    assert.match(String(call.system), /2026-10-21/);
+    assert.match(String(call.system), /2026-11-11/);
   });
 
   it("feeds validation errors back to the model and accepts the corrected call", async () => {

@@ -114,8 +114,8 @@ const scenarios: { id: string; name: string; run: () => Promise<string> }[] = [
     run: async () => {
       const client = await mcp();
       try {
-        const args = { merchant: "United Airlines", merchant_category: "airlines", justification: "Acme customer meeting", meeting: "Acme", date: "2026-10-27", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" };
-        const r1 = await client.callTool({ name: "request_purchase", arguments: { ...args, amount_usd: 1850, description: "PHL to SFO, first class, Tue Oct 27", cabin_class: "first" } });
+        const args = { merchant: "United Airlines", merchant_category: "airlines", justification: "Acme customer meeting", meeting: "Acme", date: "2026-11-17", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" };
+        const r1 = await client.callTool({ name: "request_purchase", arguments: { ...args, amount_usd: 1850, description: "PHL to SFO, first class, Tue Nov 17", cabin_class: "first" } });
         const s1 = r1.structuredContent as { status: string; request_id: string; counteroffer?: { amount_usd: number; description: string } | null };
         expect(s1?.status === "counter" && s1.counteroffer, `expected counter, got ${s1?.status}`);
         const r2 = await client.callTool({ name: "request_purchase", arguments: { ...args, amount_usd: s1.counteroffer.amount_usd, description: s1.counteroffer.description, cabin_class: "economy", parent_request_id: s1.request_id } });
@@ -131,7 +131,7 @@ const scenarios: { id: string; name: string; run: () => Promise<string> }[] = [
     id: "3",
     name: "Escalation: $2,400 conference goes to the manager in Slack (SMS)",
     run: async () => {
-      const rec = await smsUntilDecision(MAYA, "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 3.");
+      const rec = await smsUntilDecision(MAYA, "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 24.");
       expect(rec.decision?.status === "escalated" && rec.decision.escalation, `expected escalated, got ${rec.decision?.status}: ${rec.decision?.reason}`);
       const id = rec.request.request_id;
       const esc = rec.decision.escalation;
@@ -154,7 +154,7 @@ const scenarios: { id: string; name: string; run: () => Promise<string> }[] = [
     id: "4",
     name: "Settlement mismatch: $620 charged against a $480 mandate",
     run: async () => {
-      const rec = await smsUntilDecision(MAYA, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting on 2026-10-27.");
+      const rec = await smsUntilDecision(MAYA, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting on 2026-11-17.");
       expect(rec.decision?.status === "approved" && rec.decision.card, `expected approved with card, got ${rec.decision?.status}`);
       await charge(rec.decision.card, 620);
       const suspended = await waitForEvent((e) => e.type === "card.suspended" && e.request_id === rec.request.request_id, 20_000);

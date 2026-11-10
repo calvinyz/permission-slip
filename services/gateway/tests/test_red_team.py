@@ -25,7 +25,7 @@ def test_attack_is_contained(client, attack):
 
 def test_requester_cannot_resolve_own_escalation(client):
     req = build(CORPUS["base"], {"merchant_category": "conferences", "merchant": "AI Engineer Summit", "amount_usd": 2400.00,
-                                 "employee_id": "emp_maya", "travel": None, "claims": {"event": "AI Engineer Summit", "date": "2026-11-03"}},
+                                 "employee_id": "emp_maya", "travel": None, "claims": {"event": "AI Engineer Summit", "date": "2026-11-24"}},
                 "req_rt_self_approve")
     d = client.post("/v1/requests", json=req).json()
     res = client.post(f"/v1/escalations/{d['escalation']['escalation_id']}/resolve", json={"action": "approve", "resolver_id": "emp_maya"})

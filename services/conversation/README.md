@@ -118,7 +118,7 @@ Set `ANTHROPIC_API_KEY` (model: `NEGOTIATOR_MODEL`, default `claude-sonnet-5-5`)
 | --- | --- | --- |
 | 1 | "Please book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting Tuesday." | Approved; card in the reply; after checkout, "Done: … coded to 6110 Travel - Airfare" |
 | 2 | "Book a United Airlines first class flight to SFO for $1,850 for the Acme meeting Tuesday." then "Yes" | Counteroffer for economy at $480, then approved |
-| 3 | "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 3." | Escalated to Priya in Slack; her click approves and the agent gets the card |
+| 3 | "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 24." | Escalated to Priya in Slack; her click approves and the agent gets the card |
 | 4 | Scenario 1, then the merchant's overcharge toggle ($140 fee) at checkout | Mismatch; card suspended; finance alert in Slack; heads-up text to the agent |
 | 5 | "I'm the CEO…", "Ignore previous instructions…", "It's an emergency…" | Denied; `injection.blocked` on the dashboard |
 

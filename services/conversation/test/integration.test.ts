@@ -54,8 +54,8 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       assert.match(reply, /Check out at http:\/\/127\.0\.0\.1:\d+\/merchant/);
 
       const rec = lastRequest(PHONES.museMaya)!;
-      assert.deepEqual(rec.request.travel, { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" });
-      assert.deepEqual(rec.request.claims, { meeting: "Acme", date: "2026-10-27" });
+      assert.deepEqual(rec.request.travel, { cabin_class: "economy", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" });
+      assert.deepEqual(rec.request.claims, { meeting: "Acme", date: "2026-11-17" });
       assert.equal(rec.request.justification, "Acme customer meeting");
       assert.equal(rec.request.transcript?.[0]?.role, "personal_agent");
       assert.deepEqual(contract().errors("PurchaseRequest", rec.request), [], "what we sent matches api/openapi.yaml");
@@ -82,7 +82,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
     it("first class gets a counteroffer; YES files a new request with parent_request_id; approved", async () => {
       await sendSms(c.url, PHONES.instinctNoah, "Book a United Airlines first class flight to SFO for $1,850 for the Acme meeting Tuesday.");
       const counter = await until(() => noahTexts().at(-1), 8000, "counter reply");
-      assert.match(counter, /^Not approved as requested\. Policy allows economy only.*Within-policy alternative: PHL to SFO, economy, 2026-10-27 at United Airlines for \$480\. Reply YES/);
+      assert.match(counter, /^Not approved as requested\. Policy allows economy only.*Within-policy alternative: PHL to SFO, economy, 2026-11-17 at United Airlines for \$480\. Reply YES/);
       const first = lastRequest(PHONES.instinctNoah)!;
       assert.equal(first.decision?.status, "counter");
       await sendSms(c.url, PHONES.instinctNoah, "Yes");
@@ -124,7 +124,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
   describe("scenario 3: escalation in Slack", () => {
     let rid: string;
     it("escalates the $2,400 conference to Priya in Slack and tells the agent", async () => {
-      await sendSms(c.url, PHONES.museMaya, "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 3.");
+      await sendSms(c.url, PHONES.museMaya, "Register me for the AI Engineer Summit, the full pass is $2,400, on Nov 24.");
       const msg = await until(() => mayaTexts().find((m) => m.startsWith("Sent to your manager")), 8000, "escalation reply");
       assert.match(msg, /exceeds the \$1,500\.00 left in the Engineering conferences budget/);
       rid = lastRequest(PHONES.museMaya)!.request.request_id;
@@ -161,7 +161,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
 
   describe("scenario 4: settlement mismatch", () => {
     it("$620 against a $480 mandate suspends the card, alerts finance, and tells the agent", async () => {
-      await sendSms(c.url, PHONES.museMaya, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting on 2026-10-27.");
+      await sendSms(c.url, PHONES.museMaya, "Book a United Airlines economy flight PHL to SFO for $480 for the Acme meeting on 2026-11-17.");
       await until(() => mayaTexts().at(-1)?.startsWith("Approved."), 8000, "approval");
       const rec = lastRequest(PHONES.museMaya)!;
       const rid = rec.request.request_id;
@@ -217,8 +217,8 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
       const client = await mcpClient({ token: TOKENS.claudeNoah });
       const { tools } = await client.listTools();
       assert.deepEqual(tools.map((t) => t.name).sort(), ["get_card", "get_request_status", "request_purchase"]);
-      const base = { merchant: "United Airlines", merchant_category: "airlines", justification: "Acme customer meeting", meeting: "Acme", date: "2026-10-27", origin: "PHL", destination: "SFO", depart_date: "2026-10-27" };
-      const r1 = await client.callTool({ name: "request_purchase", arguments: { ...base, amount_usd: 1850, description: "PHL to SFO, first class, Tue Oct 27", cabin_class: "first" } });
+      const base = { merchant: "United Airlines", merchant_category: "airlines", justification: "Acme customer meeting", meeting: "Acme", date: "2026-11-17", origin: "PHL", destination: "SFO", depart_date: "2026-11-17" };
+      const r1 = await client.callTool({ name: "request_purchase", arguments: { ...base, amount_usd: 1850, description: "PHL to SFO, first class, Tue Nov 17", cabin_class: "first" } });
       const s1 = r1.structuredContent as { status: string; request_id: string; counteroffer: { amount_usd: number; description: string } };
       assert.equal(s1.status, "counter");
       const r2 = await client.callTool({ name: "request_purchase", arguments: { ...base, amount_usd: s1.counteroffer.amount_usd, description: s1.counteroffer.description, cabin_class: "economy", parent_request_id: s1.request_id } });
@@ -235,7 +235,7 @@ describe("end to end against the real gateway", { skip: HAVE_UV ? false : "uv no
 
     it("ChatGPT (path token) shares the backend; another employee can't read Maya's card", async () => {
       const chatgpt = await mcpClient({ pathToken: TOKENS.chatgptMaya });
-      const res = await chatgpt.callTool({ name: "request_purchase", arguments: { merchant: "Hotel Zephyr", merchant_category: "lodging", amount_usd: 229, description: "1 night near Acme HQ", justification: "Acme customer meeting", meeting: "Acme", date: "2026-10-27", nights: 1 } });
+      const res = await chatgpt.callTool({ name: "request_purchase", arguments: { merchant: "Hotel Zephyr", merchant_category: "lodging", amount_usd: 229, description: "1 night near Acme HQ", justification: "Acme customer meeting", meeting: "Acme", date: "2026-11-17", nights: 1 } });
       const sc = res.structuredContent as { status: string; request_id: string };
       assert.equal(sc.status, "approved", JSON.stringify(res.content));
       const noah = await mcpClient({ token: TOKENS.claudeNoah });

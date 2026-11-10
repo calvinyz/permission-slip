@@ -24,9 +24,9 @@ const APPROVED: Decision = {
   status: "approved",
   reason: "Economy fare within the $600 flight cap; Acme meeting verified on calendar.",
   policy_trace: [{ rule: "travel.air.class", result: "pass", detail: "economy" }],
-  verification: [{ check: "calendar.meeting", result: "verified", detail: "Acme customer meeting, 2026-10-27, San Francisco" }],
+  verification: [{ check: "calendar.meeting", result: "verified", detail: "Acme customer meeting, 2026-11-17, San Francisco" }],
   policy_version: "2026-10-20.1",
-  decided_at: "2026-10-21T15:00:00Z",
+  decided_at: "2026-11-11T15:00:00Z",
   counteroffer: null,
   escalation: null,
   mandate_id: "mdt_example",
@@ -114,8 +114,8 @@ describe("render", () => {
     assert.match(renderDecision(APPROVED), /Card ID: card_example\./);
   });
   it("counter, escalated, denied", () => {
-    const counter = renderDecision({ ...APPROVED, status: "counter", reason: "Policy allows economy only", card: null, mandate_id: null, counteroffer: { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy, 2026-10-27", reason: "Same route in economy" } });
-    assert.equal(counter, "Not approved as requested. Policy allows economy only. Within-policy alternative: PHL to SFO, economy, 2026-10-27 at United Airlines for $480. Reply YES to request that instead.");
+    const counter = renderDecision({ ...APPROVED, status: "counter", reason: "Policy allows economy only", card: null, mandate_id: null, counteroffer: { merchant: "United Airlines", merchant_category: "airlines", amount_usd: 480, description: "PHL to SFO, economy, 2026-11-17", reason: "Same route in economy" } });
+    assert.equal(counter, "Not approved as requested. Policy allows economy only. Within-policy alternative: PHL to SFO, economy, 2026-11-17 at United Airlines for $480. Reply YES to request that instead.");
     assert.match(renderDecision({ ...APPROVED, status: "escalated", reason: "Over budget", card: null }), /^Sent to your manager/);
     assert.equal(renderDecision({ ...APPROVED, status: "denied", reason: "Blocked merchant", card: null }), "Denied. Blocked merchant.");
     assert.equal(describeCounteroffer(null), undefined);
@@ -130,7 +130,7 @@ describe("render", () => {
   it("masks card numbers and CVCs in stored and displayed text", () => {
     assert.equal(maskCardNumbers("Card number 4242 4242 4242 1234, exp 10/27, CVC 123."), "Card number •••• •••• •••• 1234, exp 10/27, CVC •••.");
     assert.equal(maskCardNumbers("pan 4242424242421234"), "pan •••• •••• •••• 1234");
-    assert.equal(maskCardNumbers("$480 on 2026-10-27"), "$480 on 2026-10-27", "dates and amounts are untouched");
+    assert.equal(maskCardNumbers("$480 on 2026-11-17"), "$480 on 2026-11-17", "dates and amounts are untouched");
   });
 });
 
@@ -156,11 +156,11 @@ describe("helpers", () => {
 
 describe("gateway event normalization", () => {
   it("reads the gateway's SSE envelope (id: seq, event: type, data: Event JSON)", () => {
-    const body = { event_id: "evt_abc123", seq: 7, type: "card.issued", ts: "2026-10-21T15:00:00Z", request_id: "req_1", data: { card: { card_id: "card_1" } } };
+    const body = { event_id: "evt_abc123", seq: 7, type: "card.issued", ts: "2026-11-11T15:00:00Z", request_id: "req_1", data: { card: { card_id: "card_1" } } };
     const e = normalizeGatewayEvent({ event: "card.issued", id: "7", data: JSON.stringify(body) });
     assert.equal(e?.type, "card.issued");
     assert.equal(e?.request_id, "req_1");
-    assert.equal(e?.ts, "2026-10-21T15:00:00Z");
+    assert.equal(e?.ts, "2026-11-11T15:00:00Z");
     assert.deepEqual(e?.data, { card: { card_id: "card_1" } });
   });
   it("finds request_id nested in a request object, ignores pings", () => {
@@ -201,7 +201,7 @@ describe("google voice", () => {
   const body = [
     "<https://voice.google.com>",
     "Please book a United Airlines economy flight PHL to SFO for $480",
-    "for the Acme meeting on Oct 27.",
+    "for the Acme meeting on Nov 17.",
     "To respond to this text message, reply to this email or visit Google Voice.",
     "YOUR ACCOUNT <https://voice.google.com> HELP CENTER",
   ].join("\r\n");
@@ -210,7 +210,7 @@ describe("google voice", () => {
     const parsed = parseGvEmail("New text message from (555) 010-0001", body);
     assert.deepEqual(parsed, {
       phone: "+15550100001",
-      text: "Please book a United Airlines economy flight PHL to SFO for $480\nfor the Acme meeting on Oct 27.",
+      text: "Please book a United Airlines economy flight PHL to SFO for $480\nfor the Acme meeting on Nov 17.",
     });
   });
 
