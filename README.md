@@ -6,6 +6,10 @@ Personal AI agents are starting to spend company money. Permission Slip makes th
 
 Cards come from a simulated issuer modeled on Ramp's virtual cards, and no real money moves. This project is not affiliated with or endorsed by Ramp.
 
+![The Permission Slip dashboard during a live run: a round trip from Philadelphia to San Francisco approved at $871.60, the meeting verified on the calendar, a single-use card issued, and the charge reconciled and coded to 6110 Travel - Airfare.](site/assets/dashboard.jpg)
+
+<sub>The dashboard during a live run on Nov 10, 2026: Muse asked for Maya's round trip over SMS. The request was approved at $871.60 and paid with a single-use card, and the charge was matched and coded.</sub>
+
 ```
 Personal agent ──► Conversation service ──► Gateway ──► Card issuer
  (SMS, email,       (channels, negotiator,  (verify, policy,
