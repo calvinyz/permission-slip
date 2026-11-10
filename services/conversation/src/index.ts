@@ -21,6 +21,7 @@ import { Enrollment } from "./enrollment.ts";
 import { createLogger, type Logger } from "./logger.ts";
 import { OutboundRouter, PostmarkEmailSender, type EmailSender, type SmsSender, TwilioSmsSender } from "./channels/outbound.ts";
 import { smsRouter } from "./channels/sms.ts";
+import { GoogleVoiceSms } from "./channels/google-voice.ts";
 import { emailRouter } from "./channels/email.ts";
 import { dashboardRouter, tokenMatches } from "./dashboard/routes.ts";
 import { Presenter } from "./presenter.ts";
@@ -85,7 +86,28 @@ export function createConversationService(config: Config, overrides: Conversatio
     log,
     options: { company: config.COMPANY_NAME, merchantCategories: config.merchantCategories, demoMerchantUrl: config.DEMO_MERCHANT_URL, timeZone: render.timeZone, now },
   });
-  const sms = overrides.sms ?? (config.twilioEnabled ? new TwilioSmsSender(config.TWILIO_ACCOUNT_SID!, config.TWILIO_AUTH_TOKEN!, config.TWILIO_FROM_NUMBER!) : undefined);
+  // Google Voice needs the negotiator and outbound router to answer texts; they're wired below.
+  let googleVoice: GoogleVoiceSms | undefined;
+  if (!overrides.sms && config.googleVoiceEnabled) {
+    googleVoice = new GoogleVoiceSms({
+      address: config.GV_GMAIL_ADDRESS!,
+      appPassword: config.GV_GMAIL_APP_PASSWORD!,
+      log,
+      onText: async (phone, text) => {
+        const agent = enrollment.findSmsSender(phone);
+        if (!agent) {
+          log.info("google voice: text from unenrolled number (ignored)", { from_last4: phone.slice(-4) });
+          return;
+        }
+        const result = await negotiator.handle(agent, text);
+        for (const reply of result.replies) await outbound.send(agent, reply, { requestId: result.request_id });
+      },
+    });
+  }
+  const sms =
+    overrides.sms ??
+    googleVoice ??
+    (config.twilioEnabled ? new TwilioSmsSender(config.TWILIO_ACCOUNT_SID!, config.TWILIO_AUTH_TOKEN!, config.TWILIO_FROM_NUMBER!) : undefined);
   const email = overrides.email ?? (config.emailEnabled ? new PostmarkEmailSender(config.POSTMARK_SERVER_TOKEN!, config.EMAIL_FROM_ADDRESS!) : undefined);
   const outbound = new OutboundRouter({ sms, email, state, bus, log });
   const followups = new Followups({
@@ -130,7 +152,7 @@ export function createConversationService(config: Config, overrides: Conversatio
     employees: Object.fromEntries([...enrollment.employees.values()].map((e) => [e.employee_id, e.name])),
     gateway_events_connected: events?.connected ?? false,
     negotiator: brain.name,
-    channels: { sms: config.twilioEnabled ? "twilio" : "dry-run", email: config.emailEnabled ? "postmark" : "off", mcp: config.MCP_ENABLED, slack: Boolean(slackBot) },
+    channels: { sms: googleVoice ? "google-voice" : config.twilioEnabled ? "twilio" : "dry-run", email: config.emailEnabled ? "postmark" : "off", mcp: config.MCP_ENABLED, slack: Boolean(slackBot) },
     agents: enrollment.summary(),
   });
 
@@ -206,6 +228,7 @@ export function createConversationService(config: Config, overrides: Conversatio
     async start(port = config.PORT, host = config.HOST): Promise<Server> {
       followups.start();
       events?.start();
+      googleVoice?.start();
       slackBot?.start();
       server = await new Promise<Server>((resolve) => {
         const s = app.listen(port, host, () => resolve(s));
@@ -215,6 +238,7 @@ export function createConversationService(config: Config, overrides: Conversatio
     async stop(): Promise<void> {
       followups.stop();
       events?.stop();
+      await googleVoice?.stop();
       slackBot?.stop();
       state.saveNow();
       await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
@@ -262,7 +286,7 @@ async function main() {
     mcp: `${base}/mcp`,
     gateway: config.GATEWAY_URL,
     negotiator: service.negotiator.brainName,
-    sms: config.twilioEnabled ? "twilio" : "dry-run (no TWILIO_* set)",
+    sms: config.googleVoiceEnabled ? `google voice${config.GV_NUMBER ? ` (agents text ${config.GV_NUMBER})` : ""}` : config.twilioEnabled ? "twilio" : "dry-run (no TWILIO_* set)",
   });
   if (!config.GATEWAY_API_TOKEN) log.warn("GATEWAY_API_TOKEN is empty; the gateway will reject every request (locally its default is dev-token)");
   if (!config.TWILIO_VALIDATE_SIGNATURE) log.warn("TWILIO_VALIDATE_SIGNATURE is off: anyone who knows the URL can impersonate an enrolled agent over SMS. Only use this locally.");

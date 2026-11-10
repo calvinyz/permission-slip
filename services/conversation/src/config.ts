@@ -63,6 +63,12 @@ const EnvSchema = z.object({
   TWILIO_FROM_NUMBER: optionalString,
   TWILIO_VALIDATE_SIGNATURE: bool(true),
 
+  // SMS through Google Voice, by way of Gmail (used instead of Twilio when set)
+  GV_GMAIL_ADDRESS: optionalString,
+  GV_GMAIL_APP_PASSWORD: optionalString,
+  /** The Google Voice number agents text; shown in the startup log only. */
+  GV_NUMBER: optionalString,
+
   // Email (Postmark), only needed if Muse can't text
   POSTMARK_SERVER_TOKEN: optionalString,
   EMAIL_FROM_ADDRESS: optionalString,
@@ -104,6 +110,7 @@ export interface Config extends Env {
   merchantCategories: string[];
   negotiatorMode: "llm" | "scripted";
   twilioEnabled: boolean;
+  googleVoiceEnabled: boolean;
   emailEnabled: boolean;
   slackEnabled: boolean;
 }
@@ -142,10 +149,12 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
   return {
     ...env,
     // The gateway serves the demo merchant; agents check out there unless told otherwise.
-    DEMO_MERCHANT_URL: env.DEMO_MERCHANT_URL ?? `${env.GATEWAY_URL.replace(/\/+$/, "")}/merchant`,
+    // Unset: the gateway's demo merchant. "off": no checkout link (e.g. when agents can't reach a local gateway).
+    DEMO_MERCHANT_URL: env.DEMO_MERCHANT_URL === "off" ? undefined : (env.DEMO_MERCHANT_URL ?? `${env.GATEWAY_URL.replace(/\/+$/, "")}/merchant`),
     merchantCategories,
     negotiatorMode,
     twilioEnabled: Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM_NUMBER),
+    googleVoiceEnabled: Boolean(env.GV_GMAIL_ADDRESS && env.GV_GMAIL_APP_PASSWORD),
     emailEnabled: Boolean(env.POSTMARK_SERVER_TOKEN && env.EMAIL_FROM_ADDRESS),
     slackEnabled: Boolean(env.SLACK_BOT_TOKEN && env.SLACK_APP_TOKEN),
   };

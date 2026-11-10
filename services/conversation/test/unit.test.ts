@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { GoogleVoiceSms, parseGvEmail } from "../src/channels/google-voice.ts";
+import { silentLogger } from "../src/logger.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ContractError, contract, type Decision } from "../src/contract/schemas.ts";
@@ -192,5 +194,45 @@ describe("event bus", () => {
     bus.subscribe(() => got++);
     bus.publish({ id: "a", type: "t", ts: "", source: "agent", data: {} });
     assert.equal(got, 1);
+  });
+});
+
+describe("google voice", () => {
+  const body = [
+    "<https://voice.google.com>",
+    "Please book a United Airlines economy flight PHL to SFO for $480",
+    "for the Acme meeting on Oct 27.",
+    "To respond to this text message, reply to this email or visit Google Voice.",
+    "YOUR ACCOUNT <https://voice.google.com> HELP CENTER",
+  ].join("\r\n");
+
+  it("reads the sender and the text out of a notification email", () => {
+    const parsed = parseGvEmail("New text message from (555) 010-0001", body);
+    assert.deepEqual(parsed, {
+      phone: "+15550100001",
+      text: "Please book a United Airlines economy flight PHL to SFO for $480\nfor the Acme meeting on Oct 27.",
+    });
+  });
+
+  it("stops at the footer when the reply hint is missing", () => {
+    const footerOnly = ["<https://voice.google.com>", "Book economy for $480.", "YOUR ACCOUNT <https://voice.google.com> HELP CENTER", "Google LLC"].join("\n");
+    assert.equal(parseGvEmail("New text message from (555) 010-0001", footerOnly)?.text, "Book economy for $480.");
+  });
+
+  it("ignores mail that isn't a text notification", () => {
+    assert.equal(parseGvEmail("Your Google Voice voicemail", body), undefined);
+    assert.equal(parseGvEmail("New text message from (555) 010-0001", "<https://voice.google.com>\nTo respond to this text message, reply"), undefined);
+  });
+
+  it("only replies to numbers that texted first", async () => {
+    const gv = new GoogleVoiceSms({ address: "someone@example.com", appPassword: "x", log: silentLogger, onText: async () => undefined });
+    await assert.rejects(gv.send("+15550100001", "hi"), /texted first/);
+  });
+});
+
+describe("checkout link", () => {
+  it("defaults to the gateway's demo merchant and can be switched off", () => {
+    assert.equal(loadConfig({ GATEWAY_URL: "http://localhost:8000" }).DEMO_MERCHANT_URL, "http://localhost:8000/merchant");
+    assert.equal(loadConfig({ GATEWAY_URL: "http://localhost:8000", DEMO_MERCHANT_URL: "off" }).DEMO_MERCHANT_URL, undefined);
   });
 });
