@@ -3,7 +3,7 @@
 import { STEPS, applyAll, apply, chipStatus, createModel, orderedRequests } from "./model.js";
 
 const params = new URLSearchParams(location.search);
-const TZ = "America/Los_Angeles";
+const TZ = "America/New_York";
 
 const theme = params.get("theme");
 if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
@@ -41,8 +41,33 @@ const delta = (from, to) => {
   if (!from || !to) return "";
   // Clamp: the two laptops' clocks can differ slightly, and negative steps look broken on video.
   const ms = Math.max(0, Date.parse(to) - Date.parse(from));
-  return ms < 1000 ? `+${ms} ms` : `+${(ms / 1000).toFixed(1)} s`;
+  // Sub-second gaps are noise to a viewer; only show waits that took real time.
+  return ms < 1000 ? "" : `+${(ms / 1000).toFixed(1)} s`;
 };
+
+// Plain-English names for the gateway's policy rules and checks; the raw id stays as a tooltip.
+const RULE_LABELS = {
+  "injection.scan": "Prompt-injection scan",
+  "employee.exists": "Employee on file",
+  "claims.verified": "Claims verified",
+  "merchant.blocked": "Merchant allowed",
+  "merchant.category": "Merchant category matches",
+  "travel.air.details": "Flight details complete",
+  "claims.consistency": "Request matches its description",
+  "travel.air.class": "Economy cabin",
+  "travel.air.cap": "Within the fare limit",
+  "travel.lodging.nights": "Nights match the dates",
+  "travel.lodging.nightly": "Within the nightly hotel limit",
+  "budget.team": "Team budget",
+  "approval.auto_limit": "Within the auto-approve limit",
+};
+const CHECK_LABELS = {
+  "employee.exists": "Employee",
+  "calendar.meeting": "Meeting on the calendar",
+  "price.fare_history": "Fare against recent prices",
+};
+const ruleLabel = (id) => RULE_LABELS[id] || String(id).replace(/[._]/g, " ");
+const checkLabel = (id) => CHECK_LABELS[id] || String(id).replace(/[._]/g, " ");
 const resultClass = (r) => (/^(pass|ok|verified|true|match)/i.test(r) ? "pass" : /^(fail|false|blocked|deny|denied|mismatch)/i.test(r) ? "fail" : /^(warn|flag|review|skip|unverified)/i.test(r) ? "warn" : "");
 let employees = {};
 const person = (id) => (id && employees[id]) || id || "";
@@ -83,7 +108,7 @@ const BAD = new Set(["denied", "blocked", "suspended"]);
 function tick() {
   const now = new Date();
   $("clock-time").textContent = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: TZ });
-  $("clock-date").textContent = `${now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: TZ })}, Pacific`;
+  $("clock-date").textContent = `${now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: TZ })}, Eastern`;
   renderTimer();
 }
 setInterval(tick, 250);
@@ -168,7 +193,7 @@ function renderKpis() {
 function renderHead(r) {
   if (!r) {
     $("rq-title").textContent = "No requests yet";
-    $("rq-desc").textContent = "Text the gateway number, or ask Claude to buy something with the Permission Slip connector.";
+    $("rq-desc").textContent = "Waiting for an agent to ask Permission Slip for approval.";
     $("rq-meta").textContent = "";
     $("rq-amount").textContent = "";
     $("rq-status").replaceChildren();
@@ -215,7 +240,7 @@ function renderConvo(r) {
   const agent = agentId ? model.agents[agentId] : null;
   $("convo-meta").textContent = agent ? `${agent.label}${CHANNEL[agent.channel] ? `, ${CHANNEL[agent.channel]}` : ""}` : "";
   if (!msgs.length) {
-    box.replaceChildren(h("p", { class: "empty-state", text: r ? "This request came in without a conversation (e.g. submitted directly to the API)." : "Text the gateway number, or call request_purchase from Claude, to start." }));
+    box.replaceChildren(h("p", { class: "empty-state", text: r ? "This request came in without a conversation (e.g. submitted directly to the API)." : "Waiting for an agent to ask Permission Slip for approval." }));
     return;
   }
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
@@ -274,10 +299,10 @@ function renderPolicy(r) {
     );
   }
   if (r.checks.length) {
-    parts.push(h("div", {}, h("p", { class: "sub", text: "Claims checked" }), h("ul", { class: "checks" }, ...r.checks.map((c) => { const cls = resultClass(c.result); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("span", { text: c.name.replace(/_/g, " ") }), c.detail ? h("small", { text: c.detail }) : null), h("span", { class: `pill ${cls}`, text: c.result })); }))));
+    parts.push(h("div", {}, h("p", { class: "sub", text: "Claims checked" }), h("ul", { class: "checks" }, ...r.checks.map((c) => { const cls = resultClass(c.result); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", { title: c.name }, h("span", { text: checkLabel(c.name) }), c.detail ? h("small", { text: c.detail }) : null), h("span", { class: `pill ${cls}`, text: c.result })); }))));
   }
   if (r.trace.length) {
-    parts.push(h("div", {}, h("p", { class: "sub", text: "Policy rules, evaluated in code with no model involved" }), h("ul", { class: "trace" }, ...r.trace.map((t) => { const cls = resultClass(String(t.result)); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", {}, h("code", { text: t.rule }), t.detail ? h("small", { text: t.detail }) : null), h("span", { class: `pill ${cls}`, text: String(t.result) })); }))));
+    parts.push(h("div", {}, h("p", { class: "sub", text: "Policy rules" }), h("ul", { class: "trace" }, ...r.trace.map((t) => { const cls = resultClass(String(t.result)); return h("li", {}, h("span", { class: `ico ${cls}`, text: resultIcon(cls) }), h("div", { title: t.rule }, h("span", { text: ruleLabel(t.rule) }), t.detail ? h("small", { text: t.detail }) : null), h("span", { class: `pill ${cls}`, text: String(t.result) })); }))));
   }
   box.replaceChildren(...parts);
 }
@@ -308,11 +333,10 @@ function renderCard(r) {
     ["Policy", mandate?.policy_version],
     ["Approved by", mandate?.approved_by ? person(mandate.approved_by) : undefined],
     ["Valid until", mandate?.valid_until ? when(mandate.valid_until) : undefined],
-    ["Key", mandate?.key_id],
-    ["Card ID", card?.card_id],
+
   ].filter(([, v]) => v);
-  const IDS = new Set(["Mandate", "Key", "Card ID"]);
-  const kv = h("dl", { class: "kv" }, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { class: IDS.has(k) ? "id" : undefined, text: String(v) })]), sig ? [h("dt", { text: "Signature" }), h("dd", { class: "sig", text: `${String(sig).slice(0, 18)}… verified` })] : []);
+  const IDS = new Set(["Mandate"]);
+  const kv = h("dl", { class: "kv" }, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { class: IDS.has(k) ? "id" : undefined, text: String(v) })]), sig ? [h("dt", { text: "Signature" }), h("dd", { class: "sig", text: "Verified", title: `Ed25519 ${String(sig).slice(0, 18)}…` })] : []);
   const extra = card?.state === "suspended" ? h("div", { class: "callout bad" }, h("b", { text: "Card frozen" }), "Charge didn't match.") : null;
   box.replaceChildren(h("div", {}, vcard), h("div", {}, kv, extra));
 }

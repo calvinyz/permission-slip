@@ -89,8 +89,8 @@ console.log(`
 
   In another terminal:
     npm run scenarios                         # runs all five scenarios and prints pass/fail
-    npm run sim:sms -- --from +15550000001 "Book a United Airlines economy flight PHL to SFO for \\$480 for the Acme meeting Tuesday"
-    npm run sim:sms -- --from +15550000002 "Book a United Airlines first class flight to SFO for \\$1,850 for the Acme meeting Tuesday"
+    npm run sim:sms -- --from +15550000001 "Book a United Airlines economy flight PHL to SFO for \\$480 for the Acme meeting on Nov 17"
+    npm run sim:sms -- --from +15550000002 "Book a United Airlines first class flight to SFO for \\$1,850 for the Acme meeting on Nov 17"
     npm run sim:sms -- --from +15550000002 "Yes"
     curl -X POST ${base}/admin/reset         # clear conversations between takes
 

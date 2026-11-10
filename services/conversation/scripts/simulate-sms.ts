@@ -3,7 +3,7 @@
  * Signs it with X-Twilio-Signature when TWILIO_AUTH_TOKEN is set, so it also works against a
  * gateway with signature checks on.
  *
- *   npm run sim:sms -- --from +15550000001 "Book United economy $480 for the Acme meeting Tuesday"
+ *   npm run sim:sms -- --from +15550000001 "Book United economy $480 for the Acme meeting on Nov 17"
  *   npm run sim:sms -- --url https://your-tunnel.example --from +1... "text"
  *
  * Replies go out through Twilio (or show as dry-run on the dashboard), not to this terminal.

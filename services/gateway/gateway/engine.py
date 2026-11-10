@@ -143,7 +143,7 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
     if not rule("injection.scan", not injections, ", ".join(sorted({h["pattern"] for h in injections})) or "clean"):
         return deny("Request contains instructions aimed at the approver; claims of authority, urgency or prior approval do not change policy.", injections=injections)
 
-    if not rule("employee.exists", emp is not None, req["employee_id"]):
+    if not rule("employee.exists", emp is not None, emp["name"] if emp else req["employee_id"]):
         return deny("Unknown employee.")
 
     failed = [v for v in verification if v["result"] == "failed"]
@@ -181,13 +181,13 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
                     "amount_usd": quote["amount_usd"],
                     "description": f"{travel['origin']} to {travel['destination']}{' round trip' if round_trip else ''}, economy, {dates}".strip(", "),
                     "travel": {**travel, "cabin_class": "economy"},
-                    "reason": f"Policy allows economy only; economy at {usd(quote['amount_usd'])} is within policy and can be booked now.",
+                    "reason": f"Policy allows economy only; economy at {usd(quote['amount_usd'])} can be booked now.",
                 }
                 return Outcome("counter", offer["reason"], verification, trace, counteroffer=offer)
             return deny(f"Policy allows economy only; {cabin.replace('_', ' ')} is out of policy.")
         cap = p["air_round_trip_cap_usd"] if round_trip else p["air_cap_usd"]
         kind = "round trip" if round_trip else "one way"
-        if not rule("travel.air.cap", amount <= cap, f"{usd(amount)} <= {usd(cap)} ({kind})"):
+        if not rule("travel.air.cap", amount <= cap, f"{usd(amount)} of a {usd(cap)} {kind} limit"):
             return deny("This fare is above the travel policy limit for this trip.")
 
     if category == "lodging":
@@ -212,7 +212,7 @@ def decide(req: dict, budgets: dict[str, dict[str, float]]) -> Outcome:
             escalation_reason=f"Over {emp['department']} {category} budget by {usd(amount - budget)}",
         )
 
-    if not rule("approval.auto_limit", amount <= p["auto_approve_limit_usd"], f"{usd(amount)} <= {usd(p['auto_approve_limit_usd'])}"):
+    if not rule("approval.auto_limit", amount <= p["auto_approve_limit_usd"], f"{usd(amount)} of a {usd(p['auto_approve_limit_usd'])} limit"):
         return Outcome(
             "escalated",
             f"{usd(amount)} is above the {usd(p['auto_approve_limit_usd'])} auto-approve limit; sent to your manager.",

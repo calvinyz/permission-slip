@@ -1,6 +1,6 @@
 /**
  * Sends a fake Postmark inbound webhook to this service (CONVERSATION_URL, default localhost:PORT).
- *   npm run sim:email -- --from muse-maya@example.com "Book Hotel Zephyr for $229 for the Acme meeting Tuesday"
+ *   npm run sim:email -- --from muse-maya@example.com "Book Hotel Zephyr for $229 for the Acme meeting on Nov 17"
  */
 import { parseArgs } from "node:util";
 import { loadDotEnv } from "../src/config.ts";
