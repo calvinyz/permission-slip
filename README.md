@@ -1,14 +1,18 @@
 # Permission Slip
 
-Personal AI agents are starting to spend company money. Permission Slip is the company-side agent they negotiate with first: every purchase is verified and approved **before** it happens, enforced by a single-use virtual card scoped to the merchant, amount and time window, and reconciled and coded automatically when it settles. No receipts, no expense reports.
+Built for the Ramp hackathon, November 2026. Site and live approval simulator: [calvinyz.github.io/permission-slip](https://calvinyz.github.io/permission-slip/).
+
+Personal AI agents are starting to spend company money. Permission Slip makes them ask first. An agent asks for approval over SMS or MCP, and policy code checks verified facts before anything is bought. If the request is approved, the agent gets a single-use virtual card locked to the merchant, the amount and a time window. When the charge settles, the gateway matches it to the approval and codes it to the general ledger, so nobody files an expense report.
+
+Cards come from a simulated issuer modeled on Ramp's virtual cards, and no real money moves. This project is not affiliated with or endorsed by Ramp.
 
 ```
-Personal agent ──► Conversational services ──► Gateway ──► Card issuer
- (SMS, email,       (channels, negotiator,      (verify, policy,
-  MCP)               approvals, dashboard)       mandate, reconcile)
+Personal agent ──► Conversation service ──► Gateway ──► Card issuer
+ (SMS, email,       (channels, negotiator,  (verify, policy,
+  MCP)               approvals, dashboard)   mandate, reconcile)
 ```
 
-The conversational services talk; the gateway decides. Language models negotiate and explain, but no model sits in the approval path: decisions come from deterministic policy rules over verified claims, and every approval is an Ed25519-signed mandate.
+Language models in the conversation service read agent messages and write the replies. No model sits in the approval path. The gateway decides with deterministic policy rules over verified claims, and every approval is an Ed25519-signed mandate.
 
 ## Repository layout
 
@@ -16,7 +20,8 @@ The conversational services talk; the gateway decides. Language models negotiate
 | --- | --- |
 | [`api/`](api/) | The HTTP + event-stream contract (OpenAPI 3.1) and example payloads. The only thing services share. |
 | [`services/gateway/`](services/gateway/) | Decisioning service: claim verification, policy engine, signed mandates, card issuing, settlement and reconciliation, plus the demo merchant. Python / FastAPI. |
-| [`services/conversation/`](services/conversation/) | Conversational services: SMS and email channels, the LLM negotiator, the MCP server for Claude and ChatGPT, Slack approvals, and the live demo dashboard. TypeScript / Node. |
+| [`services/conversation/`](services/conversation/) | Conversation service: SMS (including a Google Voice bridge) and email channels, the LLM negotiator, the MCP server, Slack approvals, and the live dashboard. TypeScript / Node. |
+| [`site/`](site/) | The project site, published to GitHub Pages by `.github/workflows/pages.yml`. Static HTML, no build step. |
 
 Services never import each other's code. They integrate only through `api/openapi.yaml`, and each validates its own traffic against it.
 
@@ -30,7 +35,7 @@ uv run uvicorn --factory gateway.app:create_app --reload         # http://localh
 uv run python scripts/run_scenarios.py          # drive all demo scenarios against it
 ```
 
-Then the conversational side, in a second terminal (starts the gateway itself if it isn't running):
+Then the conversation service, in a second terminal (starts the gateway itself if it isn't running):
 
 ```bash
 cd services/conversation
