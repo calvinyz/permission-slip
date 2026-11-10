@@ -10,6 +10,14 @@ Cards come from a simulated issuer modeled on Ramp's virtual cards, and no real 
 
 <sub>The dashboard during a live run on Nov 10, 2026: Muse asked for Maya's round trip over SMS. The request was approved at $871.60 and paid with a single-use card, and the charge was matched and coded.</sub>
 
+<p>
+  <img src="site/assets/muse-request.jpg" width="300" alt="Muse, a personal agent app, showing a $871.60 economy round trip from Philadelphia to San Francisco with a button labeled Choose for approval.">
+  &nbsp;
+  <img src="site/assets/approval-texts.jpg" width="300" alt="Text messages from Permission Slip: an approval with a single-use card limited to $871.60, then a confirmation that the charge settled and was coded to 6110 Travel - Airfare.">
+</p>
+
+<sub>The same run on the phone. Muse picks the fare and asks for approval. Permission Slip texts back the approval with the card, and then confirms the booking once the charge settles.</sub>
+
 ```
 Personal agent ──► Conversation service ──► Gateway ──► Card issuer
  (SMS, email,       (channels, negotiator,  (verify, policy,

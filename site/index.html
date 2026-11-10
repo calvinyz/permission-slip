@@ -80,6 +80,13 @@
     .stage-shot { width: min(1160px, calc(100% - 48px)); margin: 0 auto; border-radius: 14px; border: 1px solid var(--night-line); overflow: hidden; }
     .stage-shot img { display: block; width: 100%; height: auto; }
     .stage .caption { text-align: center; color: var(--night-muted); font-size: 14px; margin-top: 22px; }
+    .phones { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; margin-top: 110px; color: var(--night-ink); }
+    .phones h2 { margin-bottom: 18px; }
+    .phones-text p { color: var(--night-muted); font-size: 17px; margin: 0 0 14px; max-width: 42ch; }
+    .phones figure { margin: 0; }
+    .phones img { display: block; width: 100%; height: auto; border-radius: 22px; border: 1px solid var(--night-line); }
+    .phones figcaption { color: var(--night-muted); font-size: 14px; margin-top: 12px; }
+    @media (max-width: 900px) { .phones { grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 72px; } .phones-text { grid-column: 1 / -1; } }
 
     /* ---------- Sections ---------- */
     section.light { padding: 104px 0; }
@@ -218,6 +225,10 @@
       .stage { padding-bottom: 64px; }
       .stage-shot { width: calc(100% - 32px); border-radius: 10px; }
       .stage .caption { font-size: 13px; padding: 0 16px; }
+      .phones { gap: 14px; margin-top: 56px; }
+      .phones-text p { font-size: 15px; }
+      .phones img { border-radius: 14px; }
+      .phones figcaption { font-size: 12.5px; }
       section.light, .band { padding: 64px 0; }
       h2 { font-size: 28px; margin-bottom: 12px; }
       .section-lede { font-size: 15.5px; margin-bottom: 28px; }
@@ -267,6 +278,21 @@
         <img src="assets/dashboard.jpg" width="3840" height="2160" alt="The Permission Slip dashboard during a live run: a round trip from Philadelphia to San Francisco approved at $871.60, the meeting verified on the calendar, a single-use card issued, and the charge reconciled and coded to 6110 Travel - Airfare.">
       </div>
       <p class="caption">A live run on Nov 10: Maya's round trip, approved at $871.60 and paid with a single-use card.</p>
+      <div class="wrap phones">
+        <div class="phones-text">
+          <h2>The same run, on the phone</h2>
+          <p>Maya asked Muse, her personal agent, to book the flight for her Acme meeting. Muse found a $871.60 economy round trip and texted Permission Slip for approval.</p>
+          <p>Permission Slip checked the meeting on her calendar and the fare against policy, then texted back the approval with a card for exactly that amount. After the airline charged it, a second text confirmed the charge was matched and coded.</p>
+        </div>
+        <figure>
+          <img src="assets/muse-request.jpg" width="900" height="1815" loading="lazy" alt="Muse, a personal agent app, showing a $871.60 economy round trip from Philadelphia to San Francisco with a button labeled Choose for approval.">
+          <figcaption>Muse picks a fare and asks for approval.</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/approval-texts.jpg" width="900" height="1779" loading="lazy" alt="Text messages from Permission Slip: an approval with a single-use card limited to $871.60, then a confirmation that the charge settled and was coded to 6110 Travel - Airfare.">
+          <figcaption>The approval, then the booking confirmation.</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section class="light" id="try">
