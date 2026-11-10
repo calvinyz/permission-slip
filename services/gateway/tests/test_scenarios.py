@@ -125,8 +125,18 @@ def test_merchant_checkout_reconciles_at_listed_price(client, events):
     assert events()[-1] == "txn.reconciled"
 
 
-def test_merchant_overcharge_toggle_triggers_mismatch(client, events):
-    assert client.put("/merchant/settings", json={"overcharge_usd": 140}).json() == {"overcharge_usd": 140.0}
+def local(app):
+    """A client that looks like a request made on the gateway's own machine."""
+    from fastapi.testclient import TestClient
+
+    from .conftest import TOKEN
+
+    return TestClient(app, client=("127.0.0.1", 50000), headers={"Authorization": f"Bearer {TOKEN}"})
+
+
+def test_merchant_overcharge_toggle_triggers_mismatch(app, client, events):
+    with local(app) as operator:
+        assert operator.put("/merchant/settings", json={"overcharge_usd": 140}).json() == {"overcharge_usd": 140.0}
     d = client.post("/v1/requests", json=example("04-mismatch.request.json")).json()
     res = merchant_checkout(client, d, "flight_phl_sfo_economy").json()
     assert res["charge"]["amount_usd"] == 620.00
@@ -136,7 +146,7 @@ def test_merchant_overcharge_toggle_triggers_mismatch(client, events):
 def test_merchant_rejects_bad_input(client):
     assert client.post("/merchant/checkout", json={"item_id": "nope"}).status_code == 400
     assert client.post("/merchant/checkout", json={"item_id": "flight_phl_sfo_economy", "pan": "123"}).status_code == 400
-    assert client.put("/merchant/settings", json={"overcharge_usd": -5}).status_code == 400
+    assert client.put("/merchant/settings", json={"overcharge_usd": -5}).status_code == 403, "remote clients can't toggle"
     assert client.get("/merchant").headers["content-type"].startswith("text/html")
 
 
@@ -186,3 +196,11 @@ def test_event_stream_tickets(client, app):
     t = tickets.issue()["ticket"]
     assert tickets.redeem(t) is True
     assert tickets.redeem(t) is False, "single use"
+
+
+def test_overcharge_toggle_is_local_only(app):
+    with local(app) as operator:
+        assert operator.put("/merchant/settings", json={"overcharge_usd": -5}).status_code == 400
+        assert operator.put("/merchant/settings", json={"overcharge_usd": 0}).status_code == 200
+        tunneled = operator.put("/merchant/settings", json={"overcharge_usd": 140}, headers={"X-Forwarded-For": "203.0.113.7"})
+        assert tunneled.status_code == 403, "a request relayed through a tunnel is not local"

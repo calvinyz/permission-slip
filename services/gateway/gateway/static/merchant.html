@@ -69,7 +69,7 @@
       <div class="result" id="result" role="status" aria-live="polite"></div>
     </form>
 
-    <details class="card">
+    <details class="card" id="operator" hidden>
       <summary>Merchant controls (demo operator)</summary>
       <div class="operator">
         <input type="checkbox" id="overcharge"><label for="overcharge" style="margin:0">Add an undisclosed $140.00 fee to every charge</label>
@@ -97,6 +97,8 @@
         </label>`).join("");
       const settings = (await api("GET", "/merchant/settings")).data;
       $("overcharge").checked = settings.overcharge_usd > 0;
+      // Operator controls only on request (?operator=1), and they only work from the gateway's own machine.
+      $("operator").hidden = !new URLSearchParams(location.search).has("operator");
     }
 
     $("overcharge").addEventListener("change", (e) =>

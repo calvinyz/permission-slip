@@ -42,6 +42,16 @@ CATALOG = [
 ]
 
 
+# Headers a tunnel or proxy adds; a request carrying any of them did not come from this machine directly.
+FORWARDED_HEADERS = ("x-forwarded-for", "forwarded", "x-real-ip", "cf-connecting-ip")
+
+
+def is_local(request: Request) -> bool:
+    """True only for a request made on this machine, not one relayed through a tunnel."""
+    host = request.client.host if request.client else ""
+    return host in ("127.0.0.1", "::1") and not any(h in request.headers for h in FORWARDED_HEADERS)
+
+
 def router(gw: Gateway) -> APIRouter:
     r = APIRouter(prefix="/merchant")
     settings = {"overcharge_usd": 0.0}
@@ -63,6 +73,9 @@ def router(gw: Gateway) -> APIRouter:
 
     @r.put("/settings")
     async def put_settings(request: Request):
+        # The overcharge toggle is the demo operator's, so it only works from this machine.
+        if not is_local(request):
+            return JSONResponse({"error": {"code": "forbidden", "message": "Merchant settings can only be changed locally"}}, status_code=403)
         body = await request.json()
         fee = body.get("overcharge_usd")
         if not isinstance(fee, (int, float)) or not 0 <= fee <= 10000:
