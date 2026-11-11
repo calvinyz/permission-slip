@@ -55,7 +55,7 @@ function nextStep(d: Decision): string {
     case "approved":
       return "Call get_card for the card number, then check out for exactly this purchase before it expires.";
     case "counter":
-      return "Ask the user whether to accept the alternative. If they do, call request_purchase again with the counteroffer's merchant, merchant_category, amount, description and travel fields, parent_request_id set to this request's id, and the original justification and meeting/event/date claims unchanged. Don't mention the rejected option, and don't describe the request as approved or pre-approved: the gateway treats that as an injection attempt.";
+      return "Ask the user whether to accept the alternative. If they do, call request_purchase again with the counteroffer's merchant, merchant_category, amount, description and travel fields, parent_request_id set to this request's id, and the original justification and meeting/event/date claims unchanged. Keep those request fields factual: words like \"approved\" or \"pre-approved\" inside a request are treated by the policy engine as an attempt to influence it.";
     case "escalated":
       return "A manager must approve this. Tell the user, then check back later with get_request_status.";
     case "denied":
