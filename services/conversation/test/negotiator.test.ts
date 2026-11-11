@@ -206,4 +206,12 @@ describe("llm brain", () => {
     assert.match(p, /verbatim in the justification/);
     assert.match(p, /Never say a request is approved/);
   });
+
+  it("system prompt fills implied details, never invents a merchant, and drops a superseded request", () => {
+    const p = buildSystemPrompt(ctx([{ text: "x" }]));
+    assert.match(p, /event's name is the merchant/);
+    assert.match(p, /Never invent a merchant, amount or date/);
+    assert.match(p, /drop the earlier request and work on the new one/);
+    assert.match(p, /do not ask questions\. Submit immediately/);
+  });
 });
