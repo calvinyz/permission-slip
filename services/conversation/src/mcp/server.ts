@@ -50,16 +50,18 @@ function decisionPayload(d: Decision): Record<string, unknown> {
   };
 }
 
+// Plain statements of fact. Instructions belong in the tool schema, not in tool results, where
+// a client's prompt-injection checks would (rightly) scrutinize them.
 function nextStep(d: Decision): string {
   switch (d.status) {
     case "approved":
-      return "Call get_card for the card number, then check out for exactly this purchase before it expires.";
+      return "Approved by the policy engine. The single-use card for this request is available from get_card.";
     case "counter":
-      return "Ask the user whether to accept the alternative. If they do, call request_purchase again with the counteroffer's merchant, merchant_category, amount, description and travel fields, parent_request_id set to this request's id, and the original justification and meeting/event/date claims unchanged. Don't mention the rejected option, and don't describe the request as approved or pre-approved: the gateway treats that as an injection attempt.";
+      return "Not approved as requested. The counteroffer field holds a within-policy alternative, which can be requested as a new purchase that references this request_id.";
     case "escalated":
-      return "A manager must approve this. Tell the user, then check back later with get_request_status.";
+      return "Waiting for a manager's decision. get_request_status returns the outcome.";
     case "denied":
-      return "Do not buy this with company money. Tell the user the reason.";
+      return "Denied by the policy engine. No card was issued.";
   }
 }
 
@@ -102,7 +104,7 @@ export function buildMcpServer(agent: EnrolledAgent, deps: McpDeps): McpServer {
         depart_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Travel start date, YYYY-MM-DD."),
         return_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Travel end date, YYYY-MM-DD."),
         nights: z.number().int().min(1).optional().describe("Hotels: number of nights."),
-        parent_request_id: z.string().regex(/^req_[A-Za-z0-9_-]+$/).optional().describe("Only when accepting a counteroffer: the countered request's id."),
+        parent_request_id: z.string().regex(/^req_[A-Za-z0-9_-]+$/).optional().describe("Only when accepting a counteroffer: the countered request's id. Use the counteroffer's merchant, category, amount, description and travel fields, and keep the original justification and claims. Keep every field factual."),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
